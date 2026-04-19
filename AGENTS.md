@@ -14,6 +14,7 @@ Build a public-facing map/dashboard for RUKS chronic disease data with a strong 
 
 ## Guardrails
 
+- If there are several viable implementation options with meaningful tradeoffs, stop and ask the user before committing to one.
 - Do not invent geography fields that are not present upstream.
 - Treat municipality mapping as a separate integration step that needs explicit geometry data and join keys.
 - Keep data transforms in `src/lib/` and UI concerns in `src/app/`.
@@ -27,4 +28,3 @@ Build a public-facing map/dashboard for RUKS chronic disease data with a strong 
 3. Define the geography contract for municipalities and regions.
 4. Add a map component once joinable boundary data is selected.
 5. Decide deployment target and automated data-refresh flow.
-
