@@ -1,10 +1,8 @@
 import { startTransition, useEffect, useState } from "react";
 import {
   DEFAULT_LATEST_RELEASE_URL,
-  describeArtifact,
   formatDateLabel,
   loadLatestRuksRelease,
-  type RuksArtifact,
   type RuksLatestRelease,
 } from "../lib/ruks";
 
@@ -13,7 +11,62 @@ type ReleaseState =
   | { status: "error"; message: string }
   | { status: "ready"; release: RuksLatestRelease };
 
+type FilterDefinition = {
+  label: string;
+  value: string;
+};
+
 const initialState: ReleaseState = { status: "loading" };
+
+const sidebarFilters: Array<{
+  title: string;
+  hint?: string;
+  options: FilterDefinition[];
+}> = [
+  {
+    title: "Disease",
+    options: [
+      { label: "Astma", value: "astma" },
+      { label: "Demens", value: "demens" },
+      { label: "KOL", value: "kol" },
+      { label: "Type 2-diabetes", value: "type-2-diabetes" },
+    ],
+  },
+  {
+    title: "Geographic detail",
+    hint: "Switch the map between municipality and region boundaries.",
+    options: [
+      { label: "Kommune", value: "kommune" },
+      { label: "Region", value: "region" },
+    ],
+  },
+  {
+    title: "Year",
+    options: [
+      { label: "2025", value: "2025" },
+      { label: "2024", value: "2024" },
+      { label: "2023", value: "2023" },
+      { label: "2022", value: "2022" },
+    ],
+  },
+  {
+    title: "Age group",
+    options: [
+      { label: "Alle aldre", value: "all" },
+      { label: "0-44", value: "0-44" },
+      { label: "45-64", value: "45-64" },
+      { label: "65+", value: "65plus" },
+    ],
+  },
+  {
+    title: "Sex",
+    options: [
+      { label: "Begge", value: "both" },
+      { label: "Kvinder", value: "women" },
+      { label: "Mænd", value: "men" },
+    ],
+  },
+];
 
 export function App() {
   const [state, setState] = useState<ReleaseState>(initialState);
@@ -55,25 +108,20 @@ export function App() {
 
   return (
     <div className="page-shell">
-      <header className="hero">
-        <div className="hero__copy">
+      <header className="app-header">
+        <div className="app-header__title">
           <p className="eyebrow">Kroniker-kortet</p>
-          <h1>Latest-release RUKS dashboard scaffold</h1>
-          <p className="hero__lede">
-            A static GitHub Pages frontend that resolves the newest RUKS release,
-            selects the Parquet artifact, and prepares the app for browser-side
-            analytics and future mapping.
-          </p>
+          <h1>Kroniske sygdomme på kort</h1>
         </div>
 
-        <div className="hero__meta">
+        <div className="app-header__meta">
           <div className="meta-card">
-            <span className="meta-card__label">Latest release source</span>
-            <code>{DEFAULT_LATEST_RELEASE_URL}</code>
+            <span className="meta-card__label">Map metric</span>
+            <strong>Antal personer pr. 100.000 borgere</strong>
           </div>
           <div className="meta-card">
-            <span className="meta-card__label">Current focus</span>
-            <span>GitHub Releases API resolution and Parquet-first browser reads</span>
+            <span className="meta-card__label">Release source</span>
+            <code>{DEFAULT_LATEST_RELEASE_URL}</code>
           </div>
         </div>
       </header>
@@ -89,11 +137,11 @@ function LoadingState() {
   return (
     <section className="panel panel--wide">
       <div className="panel__header">
-        <h2>Loading latest release metadata</h2>
+        <h2>Loading dashboard data</h2>
       </div>
       <p className="muted">
-        Resolving the newest upstream RUKS release and checking which artifact is
-        best suited for a static browser app.
+        Resolving the latest RUKS release and preparing the map-first dashboard
+        scaffold.
       </p>
     </section>
   );
@@ -106,8 +154,7 @@ function ErrorState({ message }: { message: string }) {
         <h2>Release source unavailable</h2>
       </div>
       <p className="muted">
-        The scaffold is ready, but the configured latest-release endpoint did not
-        load.
+        The dashboard shell is ready, but the live release metadata did not load.
       </p>
       <pre className="error-box">{message}</pre>
     </section>
@@ -115,151 +162,115 @@ function ErrorState({ message }: { message: string }) {
 }
 
 function Dashboard({ release }: { release: RuksLatestRelease }) {
-  const parquetAsset = findAsset(release.assets, "parquet");
-  const csvAsset = findAsset(release.assets, "csv_gz");
-  const sqliteAsset = findAsset(release.assets, "sqlite");
-
   return (
-    <main className="dashboard">
-      <section className="stats-grid">
-        <MetricCard
-          label="Latest release tag"
-          value={release.tag}
-          note={`Published ${formatDateLabel(release.publishedAt)}`}
-        />
-        <MetricCard
-          label="Recommended artifact"
-          value={release.recommendedAsset.kind}
-          note={`${release.recommendedAsset.sizeLabel} ${release.recommendedAsset.name}`}
-        />
-        <MetricCard
-          label="Parquet size"
-          value={parquetAsset?.sizeLabel ?? "n/a"}
-          note="Small enough to be realistic for static browser delivery."
-        />
-        <MetricCard
-          label="SQLite size"
-          value={sqliteAsset?.sizeLabel ?? "n/a"}
-          note="Useful as an archive, but too heavy for the default browser path."
-        />
-      </section>
+    <main className="dashboard-layout">
+      <aside className="sidebar panel">
+        <div className="panel__header">
+          <h2>Filters</h2>
+          <span className="pill">Sidebar</span>
+        </div>
 
-      <section className="content-grid">
-        <article className="panel panel--map">
+        <div className="filter-stack">
+          {sidebarFilters.map((filter) => (
+            <section key={filter.title} className="filter-group">
+              <div className="filter-group__header">
+                <h3>{filter.title}</h3>
+                {filter.hint ? <p className="muted">{filter.hint}</p> : null}
+              </div>
+              <div className="filter-options">
+                {filter.options.map((option, index) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    className={index === 0 ? "filter-chip filter-chip--active" : "filter-chip"}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </section>
+          ))}
+        </div>
+      </aside>
+
+      <section className="main-stage">
+        <article className="panel map-panel">
           <div className="panel__header">
-            <h2>Runtime data path</h2>
-            <span className="pill">Chosen direction</span>
-          </div>
-          <div className="map-placeholder">
-            <div className="map-placeholder__glow" />
-            <div className="map-placeholder__card">
-              <p>Static app resolves the latest release, then points the browser at the Parquet asset.</p>
+            <div>
+              <h2>Map</h2>
               <p className="muted">
-                The next layer is DuckDB-Wasm: query the remote Parquet in-browser,
-                derive filter options, and connect those results to charts and map
-                geometry.
+                Choropleth view for kommune or region colored by rate per 100,000 inhabitants.
+              </p>
+            </div>
+            <span className="pill">Main area</span>
+          </div>
+
+          <div className="map-canvas">
+            <div className="map-canvas__wash" />
+            <div className="map-canvas__legend">
+              <span>Lav</span>
+              <div className="legend-ramp" />
+              <span>Høj</span>
+            </div>
+            <div className="map-canvas__focus">
+              <p className="map-canvas__metric">Antal personer pr. 100.000 borgere</p>
+              <h3>Municipality/region choropleth lands here</h3>
+              <p className="muted">
+                Next implementation step: join filtered RUKS rates to `dagi:Kommuneinddeling`
+                and `dagi:Regionsinddeling`, then render a graduated thematic map.
               </p>
             </div>
           </div>
         </article>
 
-        <article className="panel">
-          <div className="panel__header">
-            <h2>Release overview</h2>
-          </div>
-          <dl className="facts">
-            <div>
-              <dt>Release title</dt>
-              <dd>{release.title}</dd>
+        <section className="support-grid">
+          <article className="panel">
+            <div className="panel__header">
+              <h2>Current dashboard spec</h2>
             </div>
-            <div>
-              <dt>Published</dt>
-              <dd>{formatDateLabel(release.publishedAt)}</dd>
+            <div className="checklist">
+              <p>1. Header with title.</p>
+              <p>2. Sidebar for disease, geography detail, year, age group, and sex.</p>
+              <p>3. Main map colored by `Antal personer pr. 100.000 borgere`.</p>
             </div>
-            <div>
-              <dt>Tracked assets</dt>
-              <dd>{release.assets.length}</dd>
-            </div>
-            <div>
-              <dt>API endpoint</dt>
-              <dd>{release.apiUrl}</dd>
-            </div>
-          </dl>
-        </article>
+          </article>
 
-        <article className="panel panel--wide">
-          <div className="panel__header">
-            <h2>Artifact choices</h2>
-            <span className="pill">Parquet preferred</span>
-          </div>
-          <div className="asset-grid">
-            {release.assets.map((asset) => (
-              <section key={asset.name} className="asset-card">
-                <div className="asset-card__header">
-                  <h3>{asset.name}</h3>
-                  {asset.recommended ? <span className="pill">Use this</span> : null}
-                </div>
-                <p className="asset-card__value">{asset.sizeLabel}</p>
-                <p className="muted">{describeArtifact(asset.kind)}</p>
-                <div className="asset-card__meta">
-                  <span>{asset.kind}</span>
-                  <span>{asset.contentType}</span>
-                </div>
-                <a className="asset-card__link" href={asset.url} target="_blank" rel="noreferrer">
-                  Open asset
-                </a>
-              </section>
-            ))}
-          </div>
-        </article>
+          <article className="panel">
+            <div className="panel__header">
+              <h2>Release context</h2>
+            </div>
+            <dl className="facts">
+              <div>
+                <dt>Release tag</dt>
+                <dd>{release.tag}</dd>
+              </div>
+              <div>
+                <dt>Published</dt>
+                <dd>{formatDateLabel(release.publishedAt)}</dd>
+              </div>
+              <div>
+                <dt>Preferred data file</dt>
+                <dd>{release.recommendedAsset.name}</dd>
+              </div>
+              <div>
+                <dt>Boundary source</dt>
+                <dd>DAGI WFS</dd>
+              </div>
+            </dl>
+          </article>
 
-        <article className="panel">
-          <div className="panel__header">
-            <h2>Why Parquet</h2>
-          </div>
-          <div className="checklist">
-            <p>1. Current Parquet release asset is {parquetAsset?.sizeLabel ?? "small"}.</p>
-            <p>2. Current CSV asset is {csvAsset?.sizeLabel ?? "larger"}, so parsing costs are higher.</p>
-            <p>3. Current SQLite asset is {sqliteAsset?.sizeLabel ?? "very large"}, which is not realistic as the default browser download.</p>
-          </div>
-        </article>
-
-        <article className="panel panel--wide">
-          <div className="panel__header">
-            <h2>Build track</h2>
-          </div>
-          <div className="checklist">
-            <p>1. Instantiate DuckDB-Wasm and run the first `read_parquet` query against the latest asset URL.</p>
-            <p>2. Build typed filter models from query results instead of sample JSON.</p>
-            <p>3. Add municipality geometry and join logic once the analytical slice is stable.</p>
-          </div>
-        </article>
+          <article className="panel panel--wide">
+            <div className="panel__header">
+              <h2>Implementation track</h2>
+            </div>
+            <div className="checklist">
+              <p>1. Read the rate metric from the remote Parquet dataset.</p>
+              <p>2. Build filter state for disease, geography detail, year, age group, and sex.</p>
+              <p>3. Join the filtered values to municipality or region polygons.</p>
+            </div>
+          </article>
+        </section>
       </section>
     </main>
   );
-}
-
-function MetricCard({
-  label,
-  value,
-  note,
-}: {
-  label: string;
-  value: string;
-  note: string;
-}) {
-  return (
-    <article className="metric-card">
-      <span className="metric-card__label">{label}</span>
-      <strong className="metric-card__value">{value}</strong>
-      <p className="muted">{note}</p>
-    </article>
-  );
-}
-
-function findAsset(
-  assets: RuksArtifact[],
-  kind: RuksArtifact["kind"],
-): RuksArtifact | undefined {
-  return assets.find((asset) => asset.kind === kind);
 }

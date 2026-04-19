@@ -5,7 +5,7 @@
 - Establish a stable TypeScript app shell
 - Load and validate the latest upstream release payload
 - Resolve the newest Parquet asset from the release metadata
-- Create reusable layout blocks for KPIs, trends, and the future map panel
+- Create the core dashboard layout: header, sidebar filters, and map-focused main area
 
 ## Phase 2: Data integration
 
@@ -19,7 +19,8 @@
 - Select Danish municipality and region boundary data from Dataforsyningen
 - Define join keys between geometry and RUKS geography labels
 - Choose the browser delivery format for boundaries, with `PMTiles` and `FlatGeobuf` as the primary candidates
-- Build the first choropleth or bubble map for regional and municipal views
+- Build the first choropleth for regional and municipal views
+- Color the map by `Antal personer pr. 100.000 borgere`
 
 ## Phase 4: Product polish
 

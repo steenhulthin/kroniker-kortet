@@ -63,6 +63,24 @@ Reasoning:
 
 If we need more direct feature-level client-side access before tiling, `FlatGeobuf` is the next best option.
 
+## Dashboard implication
+
+The current product direction is:
+
+- sidebar controls for disease, geography detail, year, age group, and sex
+- main map view switching between municipalities and regions
+- choropleth coloring based on `Antal personer pr. 100.000 borgere`
+
+That means the final boundary delivery format must support smooth thematic rendering and hover/click interaction for a filtered statistical layer.
+
+## Metric note
+
+The first map should prioritize the rate-style measure:
+
+- source label: `Antal personer pr. 100.000 borgere`
+
+This is the intended default choropleth metric for the dashboard.
+
 ## Open implementation questions
 
 1. What stable identifiers are available in the chosen `kommuneinddeling` and `regionsinddeling` datasets?

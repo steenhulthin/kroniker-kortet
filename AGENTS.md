@@ -6,6 +6,13 @@ This repository is intended to be primarily agent coded. Keep changes small, exp
 
 Build a public-facing map/dashboard for RUKS chronic disease data with a strong path from upstream data release to frontend update.
 
+## Product shape
+
+- Header with the dashboard title
+- Sidebar with filters for disease, geography detail, year, age group, and sex
+- Main area centered on a choropleth map
+- Primary map metric: `Antal personer pr. 100.000 borgere`
+
 ## Current technical direction
 
 - Frontend: Vite + React + TypeScript SPA
@@ -29,7 +36,7 @@ Build a public-facing map/dashboard for RUKS chronic disease data with a strong 
 ## Near-term priorities
 
 1. Add DuckDB-Wasm query helpers for the remote Parquet asset.
-2. Add disease and measure filters.
-3. Add chart components for trend comparison.
-4. Define the geography contract for municipalities and regions.
-5. Add a map component once joinable boundary data is selected.
+2. Add sidebar filters for disease, geography detail, year, age group, and sex.
+3. Define the geography contract for municipalities and regions.
+4. Add a choropleth map driven by `Antal personer pr. 100.000 borgere`.
+5. Add chart components for supporting trend comparison.

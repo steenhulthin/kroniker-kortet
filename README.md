@@ -7,7 +7,7 @@ The current scaffold is intentionally small:
 - Vite + React + TypeScript for a fast SPA workflow
 - a typed client for the upstream GitHub Releases API contract
 - a Parquet-first data strategy for browser-side reads
-- a visual dashboard shell ready for charts, filters, and a municipality map
+- a visual dashboard shell with header, filter sidebar, and map-first main area
 - repo docs so future agents can add features without re-deciding the basics
 
 ## Upstream relationship
@@ -41,6 +41,7 @@ VITE_RUKS_LATEST_RELEASE_URL=https://api.github.com/repos/steenhulthin/ruks-data
 - `public/data/`: local fallback data for offline development
 - `docs/roadmap.md`: product and engineering milestones
 - `docs/spatial-data.md`: boundary-source and map-format notes
+- `docs/dashboard-spec.md`: current product/UI requirements for the dashboard
 - `AGENTS.md`: working agreements for agent-led development
 
 ## Current scope
@@ -49,6 +50,6 @@ Version `0.1.0` is a frontend scaffold, not a finished analytical product. It is
 
 - latest release discovery and asset selection
 - DuckDB-Wasm powered Parquet queries in the browser
-- filters for disease, measure, year, and geography
-- a choropleth or proportional-symbol municipality map
+- filters for disease, geography detail, year, age group, and sex
+- a choropleth municipality/region map colored by `Antal personer pr. 100.000 borgere`
 - deployment and refresh automation
