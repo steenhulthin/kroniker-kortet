@@ -3,14 +3,16 @@
 ## Phase 1: Frontend foundation
 
 - Establish a stable TypeScript app shell
-- Load and validate the upstream summary payload
+- Load and validate the latest upstream release payload
+- Resolve the newest Parquet asset from the release metadata
 - Create reusable layout blocks for KPIs, trends, and the future map panel
 
 ## Phase 2: Data integration
 
-- Point the app at the live `ruks-data` summary endpoint by default
-- Add a lightweight validation layer for expected series structure
-- Introduce manifest and release metadata alongside the summary payload
+- Point the app at the live `ruks-data` latest release endpoint by default
+- Introduce DuckDB-Wasm and query the remote Parquet asset in-browser
+- Add a lightweight validation layer for expected columns and value domains
+- Introduce manifest and summary JSON as secondary metadata sources
 
 ## Phase 3: Geography
 
@@ -23,4 +25,3 @@
 - Add persistent filters and shareable URLs
 - Add annotation, methodology, and source links
 - Prepare deployment and an update checklist for new upstream releases
-

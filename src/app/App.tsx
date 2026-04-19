@@ -1,37 +1,36 @@
 import { startTransition, useEffect, useState } from "react";
 import {
-  DEFAULT_SUMMARY_URL,
-  formatCompactNumber,
-  formatDelta,
-  getDiseaseSnapshots,
-  getLatestYear,
-  loadRuksSummary,
-  type RuksSummary,
+  DEFAULT_LATEST_RELEASE_URL,
+  describeArtifact,
+  formatDateLabel,
+  loadLatestRuksRelease,
+  type RuksArtifact,
+  type RuksLatestRelease,
 } from "../lib/ruks";
 
-type SummaryState =
+type ReleaseState =
   | { status: "loading" }
   | { status: "error"; message: string }
-  | { status: "ready"; summary: RuksSummary };
+  | { status: "ready"; release: RuksLatestRelease };
 
-const initialState: SummaryState = { status: "loading" };
+const initialState: ReleaseState = { status: "loading" };
 
 export function App() {
-  const [state, setState] = useState<SummaryState>(initialState);
+  const [state, setState] = useState<ReleaseState>(initialState);
 
   useEffect(() => {
     let cancelled = false;
 
     async function run() {
       try {
-        const summary = await loadRuksSummary();
+        const release = await loadLatestRuksRelease();
 
         if (cancelled) {
           return;
         }
 
         startTransition(() => {
-          setState({ status: "ready", summary });
+          setState({ status: "ready", release });
         });
       } catch (error) {
         if (cancelled) {
@@ -59,28 +58,29 @@ export function App() {
       <header className="hero">
         <div className="hero__copy">
           <p className="eyebrow">Kroniker-kortet</p>
-          <h1>Map-first RUKS dashboard scaffold</h1>
+          <h1>Latest-release RUKS dashboard scaffold</h1>
           <p className="hero__lede">
-            A frontend workspace for turning upstream RUKS releases into a public,
-            explorable disease dashboard with mapping, trends, and release metadata.
+            A static GitHub Pages frontend that resolves the newest RUKS release,
+            selects the Parquet artifact, and prepares the app for browser-side
+            analytics and future mapping.
           </p>
         </div>
 
         <div className="hero__meta">
           <div className="meta-card">
-            <span className="meta-card__label">Summary source</span>
-            <code>{DEFAULT_SUMMARY_URL}</code>
+            <span className="meta-card__label">Latest release source</span>
+            <code>{DEFAULT_LATEST_RELEASE_URL}</code>
           </div>
           <div className="meta-card">
             <span className="meta-card__label">Current focus</span>
-            <span>Typed summary ingestion and dashboard shell</span>
+            <span>GitHub Releases API resolution and Parquet-first browser reads</span>
           </div>
         </div>
       </header>
 
       {state.status === "loading" ? <LoadingState /> : null}
       {state.status === "error" ? <ErrorState message={state.message} /> : null}
-      {state.status === "ready" ? <Dashboard summary={state.summary} /> : null}
+      {state.status === "ready" ? <Dashboard release={state.release} /> : null}
     </div>
   );
 }
@@ -89,11 +89,11 @@ function LoadingState() {
   return (
     <section className="panel panel--wide">
       <div className="panel__header">
-        <h2>Loading summary data</h2>
+        <h2>Loading latest release metadata</h2>
       </div>
       <p className="muted">
-        Pulling the current RUKS summary payload and preparing the first dashboard
-        view.
+        Resolving the newest upstream RUKS release and checking which artifact is
+        best suited for a static browser app.
       </p>
     </section>
   );
@@ -103,66 +103,61 @@ function ErrorState({ message }: { message: string }) {
   return (
     <section className="panel panel--wide">
       <div className="panel__header">
-        <h2>Data source unavailable</h2>
+        <h2>Release source unavailable</h2>
       </div>
       <p className="muted">
-        The scaffold is ready, but the configured summary endpoint did not load.
+        The scaffold is ready, but the configured latest-release endpoint did not
+        load.
       </p>
       <pre className="error-box">{message}</pre>
     </section>
   );
 }
 
-function Dashboard({ summary }: { summary: RuksSummary }) {
-  const latestYear = getLatestYear(summary);
-  const snapshots = getDiseaseSnapshots(summary);
+function Dashboard({ release }: { release: RuksLatestRelease }) {
+  const parquetAsset = findAsset(release.assets, "parquet");
+  const csvAsset = findAsset(release.assets, "csv_gz");
+  const sqliteAsset = findAsset(release.assets, "sqlite");
 
   return (
     <main className="dashboard">
       <section className="stats-grid">
         <MetricCard
-          label="Diseases in payload"
-          value={String(summary.diseases.length)}
-          note="Bundled sample uses an excerpt. Live upstream data includes more series."
+          label="Latest release tag"
+          value={release.tag}
+          note={`Published ${formatDateLabel(release.publishedAt)}`}
         />
         <MetricCard
-          label="Observations in upstream release"
-          value={
-            summary.observation_count
-              ? formatCompactNumber(summary.observation_count)
-              : "n/a"
-          }
-          note="Taken from the upstream release metadata."
+          label="Recommended artifact"
+          value={release.recommendedAsset.kind}
+          note={`${release.recommendedAsset.sizeLabel} ${release.recommendedAsset.name}`}
         />
         <MetricCard
-          label="Rows in source sheet"
-          value={
-            summary.source_row_count
-              ? formatCompactNumber(summary.source_row_count)
-              : "n/a"
-          }
-          note="Current upstream focus is the Hovedresultater sheet."
+          label="Parquet size"
+          value={parquetAsset?.sizeLabel ?? "n/a"}
+          note="Small enough to be realistic for static browser delivery."
         />
         <MetricCard
-          label="Latest year represented"
-          value={latestYear ? String(latestYear) : "n/a"}
-          note={`Release tag ${summary.release_tag}`}
+          label="SQLite size"
+          value={sqliteAsset?.sizeLabel ?? "n/a"}
+          note="Useful as an archive, but too heavy for the default browser path."
         />
       </section>
 
       <section className="content-grid">
         <article className="panel panel--map">
           <div className="panel__header">
-            <h2>Map surface</h2>
-            <span className="pill">Next integration</span>
+            <h2>Runtime data path</h2>
+            <span className="pill">Chosen direction</span>
           </div>
           <div className="map-placeholder">
             <div className="map-placeholder__glow" />
             <div className="map-placeholder__card">
-              <p>Municipality and region geometry layer will land here.</p>
+              <p>Static app resolves the latest release, then points the browser at the Parquet asset.</p>
               <p className="muted">
-                The upstream data already models geography. The missing piece is a
-                joinable Danish boundary dataset and map interaction patterns.
+                The next layer is DuckDB-Wasm: query the remote Parquet in-browser,
+                derive filter options, and connect those results to charts and map
+                geometry.
               </p>
             </div>
           </div>
@@ -174,46 +169,58 @@ function Dashboard({ summary }: { summary: RuksSummary }) {
           </div>
           <dl className="facts">
             <div>
-              <dt>Workbook</dt>
-              <dd>{summary.workbook_title}</dd>
+              <dt>Release title</dt>
+              <dd>{release.title}</dd>
             </div>
             <div>
-              <dt>Source release</dt>
-              <dd>{summary.source_release_date}</dd>
+              <dt>Published</dt>
+              <dd>{formatDateLabel(release.publishedAt)}</dd>
             </div>
             <div>
-              <dt>Summary series</dt>
-              <dd>{summary.series.length}</dd>
+              <dt>Tracked assets</dt>
+              <dd>{release.assets.length}</dd>
             </div>
             <div>
-              <dt>First data contract</dt>
-              <dd>`latest-summary.json`</dd>
+              <dt>API endpoint</dt>
+              <dd>{release.apiUrl}</dd>
             </div>
           </dl>
         </article>
 
         <article className="panel panel--wide">
           <div className="panel__header">
-            <h2>Disease snapshot</h2>
-            <span className="pill">Incidence counts</span>
+            <h2>Artifact choices</h2>
+            <span className="pill">Parquet preferred</span>
           </div>
-          <div className="disease-grid">
-            {snapshots.map((snapshot) => (
-              <section key={snapshot.disease} className="disease-card">
-                <div className="disease-card__header">
-                  <h3>{snapshot.disease}</h3>
-                  <span>{snapshot.latestYear}</span>
+          <div className="asset-grid">
+            {release.assets.map((asset) => (
+              <section key={asset.name} className="asset-card">
+                <div className="asset-card__header">
+                  <h3>{asset.name}</h3>
+                  {asset.recommended ? <span className="pill">Use this</span> : null}
                 </div>
-                <p className="disease-card__value">
-                  {new Intl.NumberFormat("da-DK", {
-                    maximumFractionDigits: 0,
-                  }).format(snapshot.latestValue)}
-                </p>
-                <p className="muted">
-                  Change vs. prior year: {formatDelta(snapshot.delta)} {snapshot.unit}
-                </p>
+                <p className="asset-card__value">{asset.sizeLabel}</p>
+                <p className="muted">{describeArtifact(asset.kind)}</p>
+                <div className="asset-card__meta">
+                  <span>{asset.kind}</span>
+                  <span>{asset.contentType}</span>
+                </div>
+                <a className="asset-card__link" href={asset.url} target="_blank" rel="noreferrer">
+                  Open asset
+                </a>
               </section>
             ))}
+          </div>
+        </article>
+
+        <article className="panel">
+          <div className="panel__header">
+            <h2>Why Parquet</h2>
+          </div>
+          <div className="checklist">
+            <p>1. Current Parquet release asset is {parquetAsset?.sizeLabel ?? "small"}.</p>
+            <p>2. Current CSV asset is {csvAsset?.sizeLabel ?? "larger"}, so parsing costs are higher.</p>
+            <p>3. Current SQLite asset is {sqliteAsset?.sizeLabel ?? "very large"}, which is not realistic as the default browser download.</p>
           </div>
         </article>
 
@@ -222,9 +229,9 @@ function Dashboard({ summary }: { summary: RuksSummary }) {
             <h2>Build track</h2>
           </div>
           <div className="checklist">
-            <p>1. Wire live upstream summary and manifest endpoints.</p>
-            <p>2. Add filters for disease, measure, and year.</p>
-            <p>3. Choose municipal geometry and build the first joined map.</p>
+            <p>1. Instantiate DuckDB-Wasm and run the first `read_parquet` query against the latest asset URL.</p>
+            <p>2. Build typed filter models from query results instead of sample JSON.</p>
+            <p>3. Add municipality geometry and join logic once the analytical slice is stable.</p>
           </div>
         </article>
       </section>
@@ -250,3 +257,9 @@ function MetricCard({
   );
 }
 
+function findAsset(
+  assets: RuksArtifact[],
+  kind: RuksArtifact["kind"],
+): RuksArtifact | undefined {
+  return assets.find((asset) => asset.kind === kind);
+}

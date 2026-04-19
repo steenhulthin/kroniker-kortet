@@ -1,95 +1,86 @@
-export type RuksValue = {
-  year: number;
-  value: number;
+export type GithubReleaseAsset = {
+  name: string;
+  browser_download_url: string;
+  size: number;
+  content_type: string;
+  download_count?: number;
+  updated_at?: string;
 };
 
-export type RuksSeries = {
-  disease: string;
-  measure_code: string;
-  measure_label: string;
-  value_kind: "count" | "rate" | string;
-  unit: string;
-  standardization: string;
-  values: RuksValue[];
+export type GithubLatestRelease = {
+  tag_name: string;
+  name: string;
+  html_url: string;
+  created_at: string;
+  published_at: string;
+  assets: GithubReleaseAsset[];
 };
 
-export type RuksSummary = {
-  workbook_title: string;
-  source_release_date: string;
-  release_tag: string;
-  source_row_count?: number;
-  observation_count?: number;
-  diseases: string[];
-  series: RuksSeries[];
+export type RuksArtifactKind = "parquet" | "csv_gz" | "sqlite";
+
+export type RuksArtifact = {
+  kind: RuksArtifactKind;
+  name: string;
+  url: string;
+  sizeBytes: number;
+  sizeLabel: string;
+  contentType: string;
+  downloadCount: number | null;
+  updatedAt: string | null;
+  recommended: boolean;
 };
 
-export type DiseaseSnapshot = {
-  disease: string;
-  latestYear: number;
-  latestValue: number;
-  previousValue: number | null;
-  delta: number | null;
-  valueKind: string;
-  unit: string;
+export type RuksLatestRelease = {
+  tag: string;
+  title: string;
+  htmlUrl: string;
+  createdAt: string;
+  publishedAt: string;
+  apiUrl: string;
+  assets: RuksArtifact[];
+  recommendedAsset: RuksArtifact;
 };
 
-export const DEFAULT_SUMMARY_URL =
-  import.meta.env.VITE_RUKS_SUMMARY_URL ?? "/data/latest-summary.json";
+export const DEFAULT_LATEST_RELEASE_URL =
+  import.meta.env.VITE_RUKS_LATEST_RELEASE_URL ??
+  "https://api.github.com/repos/steenhulthin/ruks-data/releases/latest";
 
-export async function loadRuksSummary(
-  input: RequestInfo | URL = DEFAULT_SUMMARY_URL,
-): Promise<RuksSummary> {
-  const response = await fetch(input);
-  if (!response.ok) {
-    throw new Error(`Unable to load RUKS summary: ${response.status}`);
-  }
+export const DEFAULT_RELEASE_FALLBACK_URL =
+  import.meta.env.VITE_RUKS_RELEASE_FALLBACK_URL ?? "/data/latest-release.json";
 
-  const data = (await response.json()) as RuksSummary;
+export async function loadLatestRuksRelease(
+  apiUrl: string = DEFAULT_LATEST_RELEASE_URL,
+  fallbackUrl: string = DEFAULT_RELEASE_FALLBACK_URL,
+): Promise<RuksLatestRelease> {
+  try {
+    const response = await fetch(apiUrl, {
+      cache: "no-store",
+      headers: {
+        Accept: "application/vnd.github+json",
+      },
+    });
 
-  if (!Array.isArray(data.diseases) || !Array.isArray(data.series)) {
-    throw new Error("RUKS summary payload is missing required arrays.");
-  }
+    if (!response.ok) {
+      throw new Error(`GitHub release request failed with ${response.status}`);
+    }
 
-  return data;
-}
+    return normalizeRelease((await response.json()) as GithubLatestRelease, apiUrl);
+  } catch (error) {
+    const fallbackResponse = await fetch(fallbackUrl, { cache: "no-store" });
 
-export function getLatestYear(summary: RuksSummary): number | null {
-  const years = summary.series.flatMap((series) =>
-    series.values.map((value) => value.year),
-  );
-
-  return years.length === 0 ? null : Math.max(...years);
-}
-
-export function getDiseaseSnapshots(summary: RuksSummary): DiseaseSnapshot[] {
-  return summary.diseases
-    .map((disease) => {
-      const preferredSeries = summary.series.find(
-        (series) =>
-          series.disease === disease &&
-          series.measure_code === "incidence" &&
-          series.value_kind === "count",
+    if (!fallbackResponse.ok) {
+      const message =
+        error instanceof Error ? error.message : "Unknown release loading error";
+      throw new Error(
+        `Unable to load live release metadata and fallback also failed. ${message}`,
       );
+    }
 
-      if (!preferredSeries || preferredSeries.values.length === 0) {
-        return null;
-      }
-
-      const values = [...preferredSeries.values].sort((left, right) => left.year - right.year);
-      const latest = values.at(-1)!;
-      const previous = values.at(-2) ?? null;
-
-      return {
-        disease,
-        latestYear: latest.year,
-        latestValue: latest.value,
-        previousValue: previous?.value ?? null,
-        delta: previous ? latest.value - previous.value : null,
-        valueKind: preferredSeries.value_kind,
-        unit: preferredSeries.unit,
-      };
-    })
-    .filter((value): value is DiseaseSnapshot => value !== null);
+    return normalizeRelease(
+      (await fallbackResponse.json()) as GithubLatestRelease,
+      apiUrl,
+    );
+  }
 }
 
 export function formatCompactNumber(value: number): string {
@@ -99,14 +90,111 @@ export function formatCompactNumber(value: number): string {
   }).format(value);
 }
 
-export function formatDelta(value: number | null): string {
-  if (value === null) {
-    return "No comparison yet";
-  }
-
-  const prefix = value > 0 ? "+" : "";
-  return `${prefix}${new Intl.NumberFormat("da-DK", {
-    maximumFractionDigits: 0,
-  }).format(value)}`;
+export function formatDateLabel(value: string): string {
+  return new Intl.DateTimeFormat("da-DK", {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZone: "Europe/Copenhagen",
+  }).format(new Date(value));
 }
 
+export function formatBytes(value: number): string {
+  const units = ["B", "KB", "MB", "GB"];
+  let currentValue = value;
+  let unitIndex = 0;
+
+  while (currentValue >= 1024 && unitIndex < units.length - 1) {
+    currentValue /= 1024;
+    unitIndex += 1;
+  }
+
+  return `${new Intl.NumberFormat("da-DK", {
+    maximumFractionDigits: currentValue < 10 && unitIndex > 0 ? 1 : 0,
+  }).format(currentValue)} ${units[unitIndex]}`;
+}
+
+export function describeArtifact(kind: RuksArtifactKind): string {
+  if (kind === "parquet") {
+    return "Best static-browser fit for DuckDB-Wasm and analytical queries.";
+  }
+
+  if (kind === "csv_gz") {
+    return "Useful fallback if we need simpler parsing or export-friendly inspection.";
+  }
+
+  return "Archive-grade source for deeper inspection, but too large for the primary browser path.";
+}
+
+function normalizeRelease(
+  data: GithubLatestRelease,
+  apiUrl: string,
+): RuksLatestRelease {
+  if (!data.tag_name || !Array.isArray(data.assets)) {
+    throw new Error("Release payload is missing required fields.");
+  }
+
+  const assets = data.assets
+    .map((asset) => {
+      const kind = classifyAsset(asset.name);
+      if (!kind) {
+        return null;
+      }
+
+      return {
+        kind,
+        name: asset.name,
+        url: asset.browser_download_url,
+        sizeBytes: asset.size,
+        sizeLabel: formatBytes(asset.size),
+        contentType: asset.content_type,
+        downloadCount: asset.download_count ?? null,
+        updatedAt: asset.updated_at ?? null,
+        recommended: false,
+      } satisfies RuksArtifact;
+    })
+    .filter((asset): asset is RuksArtifact => asset !== null);
+
+  if (assets.length === 0) {
+    throw new Error("Release payload does not include a supported RUKS data artifact.");
+  }
+
+  const recommendedAsset =
+    assets.find((asset) => asset.kind === "parquet") ??
+    assets.find((asset) => asset.kind === "csv_gz") ??
+    assets[0];
+
+  const decoratedAssets = assets.map((asset) => ({
+    ...asset,
+    recommended: asset.name === recommendedAsset.name,
+  }));
+
+  return {
+    tag: data.tag_name,
+    title: data.name || data.tag_name,
+    htmlUrl: data.html_url,
+    createdAt: data.created_at,
+    publishedAt: data.published_at,
+    apiUrl,
+    assets: decoratedAssets,
+    recommendedAsset: {
+      ...recommendedAsset,
+      recommended: true,
+    },
+  };
+}
+
+function classifyAsset(name: string): RuksArtifactKind | null {
+  if (name.endsWith(".parquet")) {
+    return "parquet";
+  }
+
+  if (name.endsWith(".csv.gz")) {
+    return "csv_gz";
+  }
+
+  if (name.endsWith(".sqlite")) {
+    return "sqlite";
+  }
+
+  return null;
+}
