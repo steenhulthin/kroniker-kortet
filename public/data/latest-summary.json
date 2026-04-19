@@ -1,0 +1,67 @@
+{
+  "workbook_title": "Udvalgte Kroniske Sygdomme og Svære Psykiske Lidelser (RUKS), 2010-2025",
+  "source_release_date": "28. november 2025",
+  "release_tag": "ruks-2025-11-28",
+  "source_row_count": 187639,
+  "observation_count": 2432172,
+  "diseases": ["astma", "demens"],
+  "series": [
+    {
+      "disease": "astma",
+      "measure_code": "incidence",
+      "measure_label": "Incidens (nye sygdomstilfaelde)",
+      "value_kind": "count",
+      "unit": "persons",
+      "standardization": "none",
+      "values": [
+        { "year": 2022, "value": 31540.0 },
+        { "year": 2023, "value": 33565.0 },
+        { "year": 2024, "value": 34030.0 },
+        { "year": 2025, "value": 22540.0 }
+      ]
+    },
+    {
+      "disease": "astma",
+      "measure_code": "incidence",
+      "measure_label": "Incidens (nye sygdomstilfaelde)",
+      "value_kind": "rate",
+      "unit": "per_100k_population",
+      "standardization": "none",
+      "values": [
+        { "year": 2022, "value": 535.0 },
+        { "year": 2023, "value": 565.0 },
+        { "year": 2024, "value": 570.0 },
+        { "year": 2025, "value": 375.0 }
+      ]
+    },
+    {
+      "disease": "demens",
+      "measure_code": "incidence",
+      "measure_label": "Incidens (nye sygdomstilfaelde)",
+      "value_kind": "count",
+      "unit": "persons",
+      "standardization": "none",
+      "values": [
+        { "year": 2022, "value": 9110.0 },
+        { "year": 2023, "value": 10130.0 },
+        { "year": 2024, "value": 11140.0 },
+        { "year": 2025, "value": 7705.0 }
+      ]
+    },
+    {
+      "disease": "demens",
+      "measure_code": "incidence",
+      "measure_label": "Incidens (nye sygdomstilfaelde)",
+      "value_kind": "rate",
+      "unit": "per_100k_population",
+      "standardization": "none",
+      "values": [
+        { "year": 2022, "value": 160.0 },
+        { "year": 2023, "value": 175.0 },
+        { "year": 2024, "value": 190.0 },
+        { "year": 2025, "value": 130.0 }
+      ]
+    }
+  ]
+}
+
