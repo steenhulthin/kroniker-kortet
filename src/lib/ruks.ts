@@ -133,26 +133,26 @@ function normalizeRelease(
     throw new Error("Release payload is missing required fields.");
   }
 
-  const assets = data.assets
-    .map((asset) => {
-      const kind = classifyAsset(asset.name);
-      if (!kind) {
-        return null;
-      }
+  const assets: RuksArtifact[] = [];
 
-      return {
-        kind,
-        name: asset.name,
-        url: asset.browser_download_url,
-        sizeBytes: asset.size,
-        sizeLabel: formatBytes(asset.size),
-        contentType: asset.content_type,
-        downloadCount: asset.download_count ?? null,
-        updatedAt: asset.updated_at ?? null,
-        recommended: false,
-      } satisfies RuksArtifact;
-    })
-    .filter((asset): asset is RuksArtifact => asset !== null);
+  for (const asset of data.assets) {
+    const kind = classifyAsset(asset.name);
+    if (!kind) {
+      continue;
+    }
+
+    assets.push({
+      kind,
+      name: asset.name,
+      url: asset.browser_download_url,
+      sizeBytes: asset.size,
+      sizeLabel: formatBytes(asset.size),
+      contentType: asset.content_type,
+      downloadCount: asset.download_count ?? null,
+      updatedAt: asset.updated_at ?? null,
+      recommended: false,
+    });
+  }
 
   if (assets.length === 0) {
     throw new Error("Release payload does not include a supported RUKS data artifact.");
