@@ -12,13 +12,15 @@ Build a public-facing map/dashboard for RUKS chronic disease data with a strong 
 - Release discovery: GitHub Releases API for `steenhulthin/ruks-data`
 - First analytical artifact: `ruks_hovedresultater_long.parquet`
 - Query engine: DuckDB-Wasm in the browser
-- Future data sources: release manifest JSON, municipality geometry, and derived app-side aggregates
+- Future data sources: release manifest JSON, Dataforsyningen municipality/region geometry, and derived app-side aggregates
+- Current boundary source: Dataforsyningen DAGI WFS with `dagi:Kommuneinddeling` and `dagi:Regionsinddeling`
 
 ## Guardrails
 
 - If there are several viable implementation options with meaningful tradeoffs, stop and ask the user before committing to one.
 - Do not invent geography fields that are not present upstream.
 - Prefer Parquet over CSV or SQLite for static browser reads unless the user asks otherwise or a verified blocker appears.
+- Keep disease data and boundary geometry as separate delivery artifacts unless there is a strong reason to combine them.
 - Treat municipality mapping as a separate integration step that needs explicit geometry data and join keys.
 - Keep data transforms in `src/lib/` and UI concerns in `src/app/`.
 - Prefer typed helpers over ad hoc object access in components.

@@ -40,6 +40,7 @@ VITE_RUKS_LATEST_RELEASE_URL=https://api.github.com/repos/steenhulthin/ruks-data
 - `src/lib/`: types and release-resolution helpers for RUKS data
 - `public/data/`: local fallback data for offline development
 - `docs/roadmap.md`: product and engineering milestones
+- `docs/spatial-data.md`: boundary-source and map-format notes
 - `AGENTS.md`: working agreements for agent-led development
 
 ## Current scope

@@ -16,8 +16,9 @@
 
 ## Phase 3: Geography
 
-- Select Danish municipality and region boundary data
+- Select Danish municipality and region boundary data from Dataforsyningen
 - Define join keys between geometry and RUKS geography labels
+- Choose the browser delivery format for boundaries, with `PMTiles` and `FlatGeobuf` as the primary candidates
 - Build the first choropleth or bubble map for regional and municipal views
 
 ## Phase 4: Product polish
