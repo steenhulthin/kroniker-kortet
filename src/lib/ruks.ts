@@ -125,6 +125,18 @@ export function describeArtifact(kind: RuksArtifactKind): string {
   return "Archive-grade source for deeper inspection, but too large for the primary browser path.";
 }
 
+export function resolveRuksParquetUrl(release: RuksLatestRelease): string {
+  const parquetAsset = release.assets.find((asset) => asset.kind === "parquet");
+
+  if (!parquetAsset) {
+    throw new Error(
+      `Release ${release.tag} does not include the required parquet asset: ruks_hovedresultater_long.parquet.`,
+    );
+  }
+
+  return parquetAsset.url;
+}
+
 function normalizeRelease(
   data: GithubLatestRelease,
   apiUrl: string,
