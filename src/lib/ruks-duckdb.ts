@@ -323,15 +323,5 @@ function resolveParquetFetchUrl(parquetUrl: string): string {
     return parquetUrl;
   }
 
-  const url = new URL(parquetUrl);
-
-  if (url.hostname === "github.com") {
-    return `/api/ruks-release-assets${url.pathname}${url.search}`;
-  }
-
-  if (url.hostname === "release-assets.githubusercontent.com") {
-    return `/api/ruks-release-blobs${url.pathname}${url.search}`;
-  }
-
-  return parquetUrl;
+  return `/api/ruks-release-asset?url=${encodeURIComponent(parquetUrl)}`;
 }
