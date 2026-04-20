@@ -48,6 +48,7 @@ export type RuksDistinctValue = {
 };
 
 const RUKS_PARQUET_SOURCE_NAME = "ruks_hovedresultater_long.parquet";
+const DUCKDB_DEBUG = import.meta.env.VITE_DEBUG_DUCKDB === "true";
 
 let bootstrapPromise: Promise<RuksDuckDbBootstrap> | null = null;
 let registeredParquetUrl: string | null = null;
@@ -161,9 +162,13 @@ async function createDuckDbBootstrap(): Promise<RuksDuckDbBootstrap> {
   }
 
   const worker = new Worker(bundle.mainWorker);
-  const db = new duckdb.AsyncDuckDB(new duckdb.VoidLogger(), worker);
+  const db = new duckdb.AsyncDuckDB(
+    DUCKDB_DEBUG ? new duckdb.ConsoleLogger() : new duckdb.VoidLogger(),
+    worker,
+  );
 
   try {
+    debugDuckDb("instantiate:start", { bundle: bundle.mainModule });
     await db.instantiate(bundle.mainModule, bundle.pthreadWorker);
     await db.open({
       path: ":memory:",
@@ -172,6 +177,7 @@ async function createDuckDbBootstrap(): Promise<RuksDuckDbBootstrap> {
         allowFullHTTPReads: true,
       },
     });
+    debugDuckDb("instantiate:ready");
     return { db, bundle };
   } catch (error) {
     worker.terminate();
@@ -213,25 +219,34 @@ async function ensureRuksParquetSource(
     return RUKS_PARQUET_SOURCE_NAME;
   }
 
+  debugDuckDb("parquet:fetch:start", { parquetUrl });
+
+  const response = await fetch(parquetUrl, { cache: "no-store" });
+
+  if (!response.ok) {
+    throw new Error(`Parquet fetch failed with ${response.status} ${response.statusText}`);
+  }
+
+  const buffer = new Uint8Array(await response.arrayBuffer());
+
+  debugDuckDb("parquet:fetch:done", {
+    parquetUrl,
+    sizeBytes: buffer.byteLength,
+  });
+
   if (registeredParquetUrl !== null) {
     await db.dropFile(RUKS_PARQUET_SOURCE_NAME).catch(() => undefined);
   }
 
-  try {
-    await db.registerFileURL(
-      RUKS_PARQUET_SOURCE_NAME,
-      parquetUrl,
-      duckdb.DuckDBDataProtocol.HTTP,
-      false,
-    );
-    registeredParquetUrl = parquetUrl;
-    return RUKS_PARQUET_SOURCE_NAME;
-  } catch (error) {
-    throw createRuksDuckDbError(
-      `Failed to register the RUKS parquet asset from ${parquetUrl}.`,
-      error,
-    );
-  }
+  await db.registerFileBuffer(RUKS_PARQUET_SOURCE_NAME, buffer);
+  registeredParquetUrl = parquetUrl;
+
+  debugDuckDb("parquet:register:done", {
+    parquetUrl,
+    sourceName: RUKS_PARQUET_SOURCE_NAME,
+  });
+
+  return RUKS_PARQUET_SOURCE_NAME;
 }
 
 function buildFilterClauses(
@@ -283,4 +298,17 @@ function createRuksDuckDbError(message: string, cause: unknown): Error {
   }
 
   return new Error(message);
+}
+
+function debugDuckDb(event: string, details?: Record<string, unknown>) {
+  if (!DUCKDB_DEBUG) {
+    return;
+  }
+
+  if (details) {
+    console.debug(`[ruks-duckdb] ${event}`, details);
+    return;
+  }
+
+  console.debug(`[ruks-duckdb] ${event}`);
 }
