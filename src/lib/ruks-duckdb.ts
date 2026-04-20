@@ -167,7 +167,7 @@ async function createDuckDbBootstrap(): Promise<RuksDuckDbBootstrap> {
     await db.instantiate(bundle.mainModule, bundle.pthreadWorker);
     await db.open({
       path: ":memory:",
-      accessMode: duckdb.DuckDBAccessMode.READ_ONLY,
+      accessMode: duckdb.DuckDBAccessMode.READ_WRITE,
       filesystem: {
         allowFullHTTPReads: true,
       },
