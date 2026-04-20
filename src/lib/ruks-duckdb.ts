@@ -214,23 +214,27 @@ async function ensureRuksParquetSource(
   release: RuksLatestRelease,
 ): Promise<string> {
   const parquetUrl = resolveRuksParquetUrl(release);
+  const fetchUrl = resolveParquetFetchUrl(parquetUrl);
 
-  if (registeredParquetUrl === parquetUrl) {
+  if (registeredParquetUrl === fetchUrl) {
     return RUKS_PARQUET_SOURCE_NAME;
   }
 
-  debugDuckDb("parquet:fetch:start", { parquetUrl });
+  debugDuckDb("parquet:fetch:start", { parquetUrl, fetchUrl });
 
-  const response = await fetch(parquetUrl, { cache: "no-store" });
+  const response = await fetch(fetchUrl, { cache: "no-store" });
 
   if (!response.ok) {
-    throw new Error(`Parquet fetch failed with ${response.status} ${response.statusText}`);
+    throw new Error(
+      `Parquet fetch failed with ${response.status} ${response.statusText}`,
+    );
   }
 
   const buffer = new Uint8Array(await response.arrayBuffer());
 
   debugDuckDb("parquet:fetch:done", {
     parquetUrl,
+    fetchUrl,
     sizeBytes: buffer.byteLength,
   });
 
@@ -239,10 +243,11 @@ async function ensureRuksParquetSource(
   }
 
   await db.registerFileBuffer(RUKS_PARQUET_SOURCE_NAME, buffer);
-  registeredParquetUrl = parquetUrl;
+  registeredParquetUrl = fetchUrl;
 
   debugDuckDb("parquet:register:done", {
     parquetUrl,
+    fetchUrl,
     sourceName: RUKS_PARQUET_SOURCE_NAME,
   });
 
@@ -311,4 +316,22 @@ function debugDuckDb(event: string, details?: Record<string, unknown>) {
   }
 
   console.debug(`[ruks-duckdb] ${event}`);
+}
+
+function resolveParquetFetchUrl(parquetUrl: string): string {
+  if (!import.meta.env.DEV) {
+    return parquetUrl;
+  }
+
+  const url = new URL(parquetUrl);
+
+  if (url.hostname === "github.com") {
+    return `/api/ruks-release-assets${url.pathname}${url.search}`;
+  }
+
+  if (url.hostname === "release-assets.githubusercontent.com") {
+    return `/api/ruks-release-blobs${url.pathname}${url.search}`;
+  }
+
+  return parquetUrl;
 }
