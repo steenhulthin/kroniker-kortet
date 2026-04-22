@@ -22,14 +22,25 @@
 - Allow switching between municipality and region detail
 - Color polygons with a graduated scale
 - Use `KOL` as the default disease in the first production slice
-- Default thematic value:
+- Intended default thematic value:
   `Antal personer pr. 100.000 borgere`
+
+## Current implementation state
+
+- The app shell includes a temporary region-first choropleth prototype path backed by live DAGI WFS geometry and DuckDB-filtered KOL rate rows.
+- That prototype must not yet be described as the first completed real region map.
+- The region map remains blocked until the first-map measure contract is explicit.
+- Temporary exact-name region join diagnostics are visible in the product.
+- Source and methodology wording are visible in the product.
+- Municipality mode is still a validation and preview path, not a completed choropleth implementation.
 
 ## Data implications
 
 - The app needs filterable observations by disease, geography level, year, age group, and sex
 - The metric should be read from the analytical RUKS dataset, not hardcoded
 - Boundary geometry must be joinable to the filtered statistics layer
+- If more than one rate-style measure survives the active filters, the app must surface that ambiguity instead of silently picking one
+- Temporary region joins need diagnostics for missing matches and duplicate stat rows before the map is called production-ready
 
 ## KOL-first validation gate
 
@@ -40,6 +51,7 @@
 - Keep any data-quality handling explicit, especially if duplicate dimensional rows appear in upstream extracts
 - Temporary project assumption: duplicate KOL rows for Bornholm municipality are treated as a Christiansø-related artifact until the upstream data issue is clarified
 - In this project, when identical dimensional rows appear with both `0` and a non-zero value, keep the non-zero value and document that the normalization happened locally
+- Do not mark the first region choropleth complete until the measure choice is explicit and region join diagnostics are available
 
 ## Source And Credit
 

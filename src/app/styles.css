@@ -261,6 +261,28 @@ dd {
   background-size: 42px 42px;
 }
 
+.region-map {
+  position: absolute;
+  inset: 18px;
+  width: calc(100% - 36px);
+  height: calc(100% - 36px);
+}
+
+.region-map--muted {
+  opacity: 0.42;
+}
+
+.region-map__shape {
+  stroke: rgba(20, 40, 29, 0.22);
+  stroke-width: 1.4;
+  vector-effect: non-scaling-stroke;
+  transition: fill 140ms ease, stroke 140ms ease;
+}
+
+.region-map__shape:hover {
+  stroke: rgba(20, 40, 29, 0.55);
+}
+
 .map-canvas__focus {
   position: absolute;
   left: 32px;
@@ -406,6 +428,61 @@ dd {
 .checklist {
   display: grid;
   gap: 12px;
+}
+
+.source-stack {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.source-note {
+  padding: 14px 16px;
+  border-radius: 18px;
+  border: 1px solid var(--line);
+  background: rgba(20, 40, 29, 0.04);
+  line-height: 1.6;
+}
+
+.source-note--derived {
+  background: rgba(31, 122, 90, 0.08);
+}
+
+.diagnostic-list {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.diagnostic-list p {
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  background: rgba(20, 40, 29, 0.04);
+}
+
+.resource-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.resource-link {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid rgba(20, 40, 29, 0.14);
+  border-radius: 999px;
+  padding: 0.6rem 0.9rem;
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.7);
+  text-decoration: none;
+  transition: border-color 140ms ease, transform 140ms ease;
+}
+
+.resource-link:hover {
+  border-color: rgba(20, 40, 29, 0.28);
+  transform: translateY(-1px);
 }
 
 .error-box {

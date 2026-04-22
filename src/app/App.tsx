@@ -13,6 +13,21 @@ import {
   type RuksFilterDomainKey,
   type RuksQueryContract,
 } from "../lib/ruks-duckdb";
+import {
+  queryRuksRegionJoinDiagnostics,
+  type RuksRegionJoinDiagnostics,
+} from "../lib/ruks-region-join-diagnostics";
+import {
+  auditRuksRegionRateCandidates,
+  queryRuksRegionRateMapRows,
+  type RuksRegionRateCandidateAudit,
+  type RuksRegionRateMapRow,
+} from "../lib/ruks-map";
+import {
+  fetchTemporaryDagiRegionSvgBoundaries,
+  type SvgRegionBoundaryCollection,
+  type SvgRegionBoundaryFeature,
+} from "../lib/spatial-region-wfs";
 
 type ReleaseState =
   | { status: "loading" }
@@ -51,6 +66,10 @@ type FilterLoadState =
   | { status: "error"; message: string };
 
 type PreviewRow = {
+  measure_label?: unknown;
+  source_unit_label?: unknown;
+  value_kind?: unknown;
+  standardization?: unknown;
   disease_label?: unknown;
   geo_level?: unknown;
   region_name?: unknown;
@@ -65,6 +84,31 @@ type PreviewLoadState =
   | { status: "loading" }
   | { status: "ready"; rows: PreviewRow[] }
   | { status: "empty" }
+  | { status: "error"; message: string };
+
+type RegionBoundaryLoadState =
+  | { status: "loading" }
+  | { status: "ready"; boundaries: SvgRegionBoundaryCollection }
+  | { status: "error"; message: string };
+
+type RegionMetricLoadState =
+  | { status: "idle" }
+  | { status: "blocked"; message: string }
+  | { status: "loading" }
+  | { status: "ready"; rows: RuksRegionRateMapRow[] }
+  | { status: "empty" }
+  | { status: "error"; message: string };
+
+type RegionJoinDiagnosticsLoadState =
+  | { status: "idle" }
+  | { status: "loading" }
+  | { status: "ready"; diagnostics: RuksRegionJoinDiagnostics }
+  | { status: "error"; message: string };
+
+type RegionRateAuditLoadState =
+  | { status: "idle" }
+  | { status: "loading" }
+  | { status: "ready"; audit: RuksRegionRateCandidateAudit }
   | { status: "error"; message: string };
 
 const initialState: ReleaseState = { status: "loading" };
@@ -100,11 +144,34 @@ const sidebarFilters: SidebarFilter[] = [
 
 const dataDrivenFilterKeys = ["disease", "year", "ageGroup", "sex"] as const;
 const preferredDiseaseSlug = "kol";
+const directRuksSourceNote =
+  "Kilde: Sundhedsdatastyrelsen, Register for Udvalgte Kroniske Sygdomme og Svære Psykiske Lidelser (RUKS) (pr. 28. november 2025).";
+const derivedRuksSourceNote =
+  "Kilde: Egne beregninger baseret på tal fra Register for Udvalgte Kroniske Sygdomme og Svære Psykiske Lidelser (RUKS) (pr. 28. november 2025) fra Sundhedsdatastyrelsen.";
 
 const localGeographyOptions: FilterDefinition[] = [
   { label: "Kommune", value: "municipality" },
   { label: "Region", value: "region" },
 ];
+
+const methodologyLinks = [
+  {
+    href: "https://sundhedsdatabank.dk/sygdomme/kroniske-sygdomme-og-svaere-psykiske-lidelser",
+    label: "Sundhedsdatabanken statistikside",
+  },
+  {
+    href: "https://cdn1.gopublic.dk/sundhedsdatastyrelsen/Media/638941202140187084/Informationsfane%20for%20statistikken%20Udvalgte%20Kroniske%20Sygdomme%20og%20Sv%C3%A6re%20Psykiske%20Lidelser.pdf",
+    label: "Informationsfane",
+  },
+  {
+    href: "https://cdn1.gopublic.dk/sundhedsdatastyrelsen/Media/638941202130289791/Algoritmer%20for%20Udvalgte%20Kroniske%20Sygdomme%20og%20Sv%C3%A6re%20Psykiske%20Lidelser%20%28RUKS%29%202024.pdf",
+    label: "Algoritmer",
+  },
+  {
+    href: "https://cdn1.gopublic.dk/sundhedsdatastyrelsen/Media/638941202128671349/RUKS%20analysevariable%20og%20statistiske%20m%C3%A5l.pdf",
+    label: "Analysevariable og statistiske mål",
+  },
+] as const;
 
 const ruksFilterContract: RuksQueryContract = {
   filterColumns: {
@@ -132,6 +199,10 @@ const ruksFilterContract: RuksQueryContract = {
     },
   },
   selectColumns: [
+    "measure_label",
+    "source_unit_label",
+    "value_kind",
+    "standardization",
     "disease_label",
     "geo_level",
     "region_name",
@@ -145,6 +216,10 @@ const ruksFilterContract: RuksQueryContract = {
 
 const previewRowLimit = 6;
 const previewDedupedKeyColumns = [
+  "measure_label",
+  "source_unit_label",
+  "value_kind",
+  "standardization",
   "disease_label",
   "geo_level",
   "region_name",
@@ -218,6 +293,112 @@ function buildSelectionSummary(
       return getSelectedFilterLabel(filters[filter.key], options);
     })
     .join(", ");
+}
+
+function formatMetricValue(value: number): string {
+  return new Intl.NumberFormat("da-DK", {
+    maximumFractionDigits: value >= 100 ? 0 : 1,
+  }).format(value);
+}
+
+function getRegionFillColor(
+  value: number | null,
+  minValue: number,
+  maxValue: number,
+): string {
+  if (value === null) {
+    return "rgba(20, 40, 29, 0.12)";
+  }
+
+  if (maxValue <= minValue) {
+    return "#1f7a5a";
+  }
+
+  const ratio = (value - minValue) / (maxValue - minValue);
+  const lightness = 92 - ratio * 40;
+
+  return `hsl(152 42% ${lightness}%)`;
+}
+
+function isAmbiguousRegionMeasureMessage(message: string): boolean {
+  return message.includes("Region map metric is ambiguous");
+}
+
+function getRegionLegendLabels(
+  filters: FilterState | null,
+  regionMetricState: RegionMetricLoadState,
+  regionMinValue: number,
+  regionMaxValue: number,
+) {
+  if (filters?.geoLevel !== "region") {
+    return {
+      start: "Loading",
+      end: "Ready",
+    };
+  }
+
+  if (regionMetricState.status === "ready") {
+    return {
+      start: formatMetricValue(regionMinValue),
+      end: formatMetricValue(regionMaxValue),
+    };
+  }
+
+  if (filters.disease !== preferredDiseaseSlug) {
+    return {
+      start: "KOL only",
+      end: "Preview",
+    };
+  }
+
+  if (
+    regionMetricState.status === "error" &&
+    isAmbiguousRegionMeasureMessage(regionMetricState.message)
+  ) {
+    return {
+      start: "Join ready",
+      end: "Measure pending",
+    };
+  }
+
+  return {
+    start: "Loading",
+    end: "Ready",
+  };
+}
+
+function getRegionMapEmptyLabel(
+  filters: FilterState | null,
+  regionMetricState: RegionMetricLoadState,
+): string {
+  if (filters?.geoLevel !== "region") {
+    return "ingen regiondata aktiv";
+  }
+
+  if (filters.disease !== preferredDiseaseSlug) {
+    return "regionkortet er kun aktivt for KOL endnu";
+  }
+
+  if (
+    regionMetricState.status === "error" &&
+    isAmbiguousRegionMeasureMessage(regionMetricState.message)
+  ) {
+    return "awaiting explicit measure contract";
+  }
+
+  if (regionMetricState.status === "loading") {
+    return "indlaeser regionrater";
+  }
+
+  if (regionMetricState.status === "empty") {
+    return "ingen regionrater fundet";
+  }
+
+  return "ingen rate fundet";
+}
+
+function formatNameList(names: readonly string[]): string {
+  return names.length === 0 ? "none" : names.join(", ");
 }
 
 export function App() {
@@ -321,6 +502,52 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
   const [previewState, setPreviewState] = useState<PreviewLoadState>({
     status: "loading",
   });
+  const [regionBoundaryState, setRegionBoundaryState] = useState<RegionBoundaryLoadState>({
+    status: "loading",
+  });
+  const [regionMetricState, setRegionMetricState] = useState<RegionMetricLoadState>({
+    status: "idle",
+  });
+  const [regionJoinDiagnosticsState, setRegionJoinDiagnosticsState] =
+    useState<RegionJoinDiagnosticsLoadState>({
+      status: "idle",
+    });
+  const [regionRateAuditState, setRegionRateAuditState] = useState<RegionRateAuditLoadState>({
+    status: "idle",
+  });
+
+  useEffect(() => {
+    let cancelled = false;
+
+    setRegionBoundaryState({ status: "loading" });
+
+    async function loadRegionBoundaries() {
+      try {
+        const boundaries = await fetchTemporaryDagiRegionSvgBoundaries();
+
+        if (cancelled) {
+          return;
+        }
+
+        setRegionBoundaryState({ status: "ready", boundaries });
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+
+        const message =
+          error instanceof Error ? error.message : "Unknown spatial loading error";
+
+        setRegionBoundaryState({ status: "error", message });
+      }
+    }
+
+    void loadRegionBoundaries();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -429,6 +656,156 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
     };
   }, [release, filters, filterLoadState.status]);
 
+  useEffect(() => {
+    if (filterLoadState.status !== "ready" || filters === null) {
+      return;
+    }
+
+    if (filters.geoLevel !== "region") {
+      setRegionMetricState({ status: "idle" });
+      setRegionRateAuditState({ status: "idle" });
+      return;
+    }
+
+    if (filters.disease !== preferredDiseaseSlug) {
+      setRegionMetricState({
+        status: "blocked",
+        message:
+          "Region choropleth is intentionally KOL-first. Non-KOL diseases stay in preview and diagnostics mode until the KOL region path is proven end to end.",
+      });
+      setRegionRateAuditState({ status: "idle" });
+      return;
+    }
+
+    const activeFilters = filters;
+    let cancelled = false;
+
+    setRegionMetricState({ status: "loading" });
+    setRegionRateAuditState({ status: "loading" });
+
+    async function loadRegionMetrics() {
+      try {
+        const [audit, rows] = await Promise.all([
+          auditRuksRegionRateCandidates(release, {
+            disease: activeFilters.disease,
+            year: activeFilters.year,
+            ageGroup: activeFilters.ageGroup,
+            sex: activeFilters.sex,
+          }),
+          queryRuksRegionRateMapRows(release, {
+            disease: activeFilters.disease,
+            year: activeFilters.year,
+            ageGroup: activeFilters.ageGroup,
+            sex: activeFilters.sex,
+          }),
+        ]);
+
+        if (cancelled) {
+          return;
+        }
+
+        setRegionRateAuditState({ status: "ready", audit });
+        setRegionMetricState(
+          rows.length === 0 ? { status: "empty" } : { status: "ready", rows },
+        );
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+
+        const message =
+          error instanceof Error ? error.message : "Unknown regional metric error";
+
+        try {
+          const audit = await auditRuksRegionRateCandidates(release, {
+            disease: activeFilters.disease,
+            year: activeFilters.year,
+            ageGroup: activeFilters.ageGroup,
+            sex: activeFilters.sex,
+          });
+
+          if (!cancelled) {
+            setRegionRateAuditState({ status: "ready", audit });
+          }
+        } catch (auditError) {
+          if (!cancelled) {
+            setRegionRateAuditState({
+              status: "error",
+              message:
+                auditError instanceof Error
+                  ? auditError.message
+                  : "Unknown region-rate audit error",
+            });
+          }
+        }
+
+        setRegionMetricState({ status: "error", message });
+      }
+    }
+
+    void loadRegionMetrics();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [release, filters, filterLoadState.status]);
+
+  useEffect(() => {
+    if (
+      filterLoadState.status !== "ready" ||
+      filters === null ||
+      filters.geoLevel !== "region" ||
+      regionBoundaryState.status !== "ready"
+    ) {
+      setRegionJoinDiagnosticsState({ status: "idle" });
+      return;
+    }
+
+    const activeFilters = filters;
+    const boundaryRegionNames = regionBoundaryState.boundaries.features.map(
+      (feature) => feature.name,
+    );
+    let cancelled = false;
+
+    setRegionJoinDiagnosticsState({ status: "loading" });
+
+    async function loadRegionJoinDiagnostics() {
+      try {
+        const diagnostics = await queryRuksRegionJoinDiagnostics(
+          release,
+          {
+            disease: activeFilters.disease,
+            year: activeFilters.year,
+            ageGroup: activeFilters.ageGroup,
+            sex: activeFilters.sex,
+          },
+          boundaryRegionNames,
+        );
+
+        if (cancelled) {
+          return;
+        }
+
+        setRegionJoinDiagnosticsState({ status: "ready", diagnostics });
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+
+        const message =
+          error instanceof Error ? error.message : "Unknown region join diagnostic error";
+
+        setRegionJoinDiagnosticsState({ status: "error", message });
+      }
+    }
+
+    void loadRegionJoinDiagnostics();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [release, filters, filterLoadState.status, regionBoundaryState]);
+
   const filterOptions =
     filterLoadState.status === "ready" || filterLoadState.status === "empty"
       ? filterLoadState.options
@@ -438,6 +815,30 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
     filters && filterOptions
       ? buildSelectionSummary(filters, filterOptions)
       : "Loading filter options from DuckDB...";
+  const selectedDiseaseLabel =
+    filters && filterOptions
+      ? getSelectedFilterLabel(filters.disease, toFilterDefinitions(filterOptions.disease))
+      : "selected disease";
+  const isRegionView = filters?.geoLevel === "region";
+  const isKOLRegionPrototype =
+    isRegionView && filters.disease === preferredDiseaseSlug;
+  const regionMapRows =
+    regionMetricState.status === "ready" ? regionMetricState.rows : [];
+  const regionValues = regionMapRows.map((row) => row.value);
+  const regionMinValue =
+    regionValues.length > 0 ? Math.min(...regionValues) : 0;
+  const regionMaxValue =
+    regionValues.length > 0 ? Math.max(...regionValues) : 0;
+  const regionValueByName = new Map(
+    regionMapRows.map((row) => [row.regionName, row]),
+  );
+  const regionLegendLabels = getRegionLegendLabels(
+    filters,
+    regionMetricState,
+    regionMinValue,
+    regionMaxValue,
+  );
+  const regionMapEmptyLabel = getRegionMapEmptyLabel(filters, regionMetricState);
 
   return (
     <main className="dashboard-layout">
@@ -455,6 +856,13 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
         ) : null}
         {filterLoadState.status === "error" ? (
           <pre className="error-box">{filterLoadState.message}</pre>
+        ) : null}
+        {isRegionView ? (
+          <p className="filter-stack__status">
+            {isKOLRegionPrototype
+              ? "Region mode is intentionally KOL-first. KOL is the only disease that can activate the live region slice while the path is being validated."
+              : `${selectedDiseaseLabel} remains in preview and join-diagnostics mode in region view until the KOL region path is proven end to end.`}
+          </p>
         ) : null}
 
         <div className="filter-stack">
@@ -503,24 +911,151 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
               <p className="muted">
                 Showing {release.tag} for {selectionSummary}
               </p>
+              {isRegionView ? (
+                <p className="muted">
+                  Region mode is explicitly KOL-first. Non-KOL diseases stay in
+                  preview-only validation mode so they do not read as production-ready.
+                </p>
+              ) : null}
+              {isKOLRegionPrototype &&
+              regionMetricState.status === "error" &&
+              isAmbiguousRegionMeasureMessage(regionMetricState.message) ? (
+                <p className="muted">
+                  The exact-name region join is wired, but the choropleth remains blocked
+                  until a single region measure contract is chosen explicitly.
+                </p>
+              ) : null}
               <p className="muted">
                 Temporary project assumption: duplicate Bornholm rows are treated as a
                 Christiansoe-related artifact and collapsed locally until clarified upstream.
               </p>
             </div>
-            <span className="pill">Live DuckDB</span>
+            <span className="pill">
+              {isRegionView ? "KOL-first region slice" : "Live DuckDB"}
+            </span>
           </div>
 
           <div className="map-canvas">
             <div className="map-canvas__wash" />
+            {isRegionView && regionBoundaryState.status === "ready" ? (
+              <svg
+                className={
+                  isKOLRegionPrototype && regionMetricState.status === "ready"
+                    ? "region-map"
+                    : "region-map region-map--muted"
+                }
+                viewBox={regionBoundaryState.boundaries.viewBox}
+                role="img"
+                aria-label={
+                  isKOLRegionPrototype && regionMetricState.status === "ready"
+                    ? "Region choropleth for the selected KOL filter combination"
+                    : "Region reference geometry shown in KOL-first validation mode"
+                }
+              >
+                {regionBoundaryState.boundaries.features.map((feature) => (
+                  <RegionMapShape
+                    key={feature.localId}
+                    feature={feature}
+                    row={
+                      isKOLRegionPrototype && regionMetricState.status === "ready"
+                        ? (regionValueByName.get(feature.name) ?? null)
+                        : null
+                    }
+                    minValue={regionMinValue}
+                    maxValue={regionMaxValue}
+                    emptyLabel={regionMapEmptyLabel}
+                  />
+                ))}
+              </svg>
+            ) : null}
             <div className="map-canvas__legend">
-              <span>Loading</span>
+              <span>{regionLegendLabels.start}</span>
               <div className="legend-ramp" />
-              <span>Ready</span>
+              <span>{regionLegendLabels.end}</span>
             </div>
 
             <div className="map-canvas__focus map-preview">
               <p className="map-canvas__metric">Antal personer pr. 100.000 borgere</p>
+              {filters?.geoLevel === "region" &&
+              filters.disease !== preferredDiseaseSlug ? (
+                <div className="preview-state">
+                  <h3>KOL-first region prototype</h3>
+                  <p className="muted">
+                    The first real choropleth is being proven on KOL only. Other diseases
+                    remain in preview-only mode until the KOL region path passes QA and a
+                    measure is chosen explicitly.
+                  </p>
+                </div>
+              ) : null}
+
+              {isKOLRegionPrototype &&
+              regionBoundaryState.status === "loading" ? (
+                <div className="preview-state">
+                  <h3>Loading region boundaries</h3>
+                  <p className="muted">
+                    Fetching the temporary DAGI WFS region geometry path for the first real
+                    choropleth prototype.
+                  </p>
+                </div>
+              ) : null}
+
+              {isKOLRegionPrototype &&
+              regionBoundaryState.status === "error" ? (
+                <div className="preview-state preview-state--error">
+                  <h3>Region boundary load failed</h3>
+                  <pre className="error-box">{regionBoundaryState.message}</pre>
+                </div>
+              ) : null}
+
+              {isKOLRegionPrototype &&
+              regionMetricState.status === "loading" ? (
+                <div className="preview-state">
+                  <h3>Loading region rates</h3>
+                  <p className="muted">
+                    Querying the non-standardized rate rows for the selected KOL view.
+                  </p>
+                </div>
+              ) : null}
+
+              {isKOLRegionPrototype &&
+              regionMetricState.status === "empty" ? (
+                <div className="preview-state">
+                  <h3>No region rates found</h3>
+                  <p className="muted">
+                    DuckDB returned no regional rate rows for the selected filters.
+                  </p>
+                </div>
+              ) : null}
+
+              {isKOLRegionPrototype &&
+              regionMetricState.status === "error" ? (
+                <div className="preview-state preview-state--error">
+                  <h3>
+                    {isAmbiguousRegionMeasureMessage(regionMetricState.message)
+                      ? "Region measure contract still unresolved"
+                      : "Region rate query failed"}
+                  </h3>
+                  {isAmbiguousRegionMeasureMessage(regionMetricState.message) ? (
+                    <p className="muted">
+                      The exact-name region join is available, but the map stays
+                      intentionally blocked until one region measure is selected on
+                      purpose.
+                    </p>
+                  ) : null}
+                  <pre className="error-box">{regionMetricState.message}</pre>
+                </div>
+              ) : null}
+
+              {filters?.geoLevel === "municipality" ? (
+                <div className="preview-state">
+                  <h3>Region map is live first</h3>
+                  <p className="muted">
+                    Municipality mode still uses the validation preview while the region
+                    choropleth prototype is being proven and QA-approved.
+                  </p>
+                </div>
+              ) : null}
+
               {previewState.status === "loading" ? (
                 <div className="preview-state">
                   <h3>Querying DuckDB</h3>
@@ -568,6 +1103,7 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
                     <table className="preview-table">
                       <thead>
                         <tr>
+                          <th>Metric</th>
                           <th>Geography</th>
                           <th>Disease</th>
                           <th>Year</th>
@@ -579,6 +1115,7 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
                       <tbody>
                         {previewState.rows.map((row, index) => (
                           <tr key={`${index}-${String(row.year ?? "")}`}>
+                            <td>{formatPreviewValue(row.source_unit_label ?? row.measure_label)}</td>
                             <td>{filters ? getGeographyValue(row, filters.geoLevel) : "—"}</td>
                             <td>{formatPreviewValue(row.disease_label)}</td>
                             <td>{formatPreviewValue(row.year)}</td>
@@ -644,6 +1181,151 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
             </div>
           </article>
 
+          <article className="panel">
+            <div className="panel__header">
+              <h2>Region rate audit</h2>
+            </div>
+            {isKOLRegionPrototype && regionRateAuditState.status === "loading" ? (
+              <p className="muted">
+                Auditing which non-standardized rate measures survive the active KOL
+                region filters.
+              </p>
+            ) : null}
+            {isKOLRegionPrototype && regionRateAuditState.status === "error" ? (
+              <pre className="error-box">{regionRateAuditState.message}</pre>
+            ) : null}
+            {isKOLRegionPrototype && regionRateAuditState.status === "ready" ? (
+              <div className="checklist">
+                <p>
+                  1. Matching measures:{" "}
+                  {regionRateAuditState.audit.measures.length === 0
+                    ? "none"
+                    : regionRateAuditState.audit.measures
+                        .map(
+                          (measure) =>
+                            `${measure.measureLabel || measure.measureCode} (${measure.measureCode})`,
+                        )
+                        .join(", ")}
+                </p>
+                <p>
+                  2. Candidate rows per measure:{" "}
+                  {regionRateAuditState.audit.measures.length === 0
+                    ? "none"
+                    : regionRateAuditState.audit.measures
+                        .map(
+                          (measure) =>
+                            `${measure.measureCode}: ${measure.rowCount} rows / ${measure.distinctRegionCount} regions`,
+                        )
+                        .join(", ")}
+                </p>
+                <p>
+                  3. Duplicate candidate region names:{" "}
+                  {formatNameList(regionRateAuditState.audit.duplicateRegionNames)}
+                </p>
+              </div>
+            ) : null}
+            {!isKOLRegionPrototype ? (
+              <p className="muted">
+                The rate audit is shown only for the KOL region prototype because that
+                is the current acceptance slice.
+              </p>
+            ) : null}
+          </article>
+
+          <article className="panel">
+            <div className="panel__header">
+              <h2>Region join diagnostics</h2>
+            </div>
+            {isRegionView && regionJoinDiagnosticsState.status === "loading" ? (
+              <p className="muted">
+                Checking the exact-name join between `region_name` and DAGI region names
+                for the current region selection.
+              </p>
+            ) : null}
+            {isRegionView && regionJoinDiagnosticsState.status === "error" ? (
+              <pre className="error-box">{regionJoinDiagnosticsState.message}</pre>
+            ) : null}
+            {isRegionView && regionJoinDiagnosticsState.status === "ready" ? (
+              <>
+                <div className="preview-summary">
+                  <div className="preview-summary__card">
+                    <span className="preview-summary__label">Join mode</span>
+                    <strong>Exact `region_name = DAGI.Navn`</strong>
+                  </div>
+                  <div className="preview-summary__card">
+                    <span className="preview-summary__label">Matched</span>
+                    <strong>
+                      {regionJoinDiagnosticsState.diagnostics.matchedRegionNames.length}/
+                      {regionJoinDiagnosticsState.diagnostics.totalRuksRegions}
+                    </strong>
+                  </div>
+                  <div className="preview-summary__card">
+                    <span className="preview-summary__label">DAGI regions</span>
+                    <strong>{regionJoinDiagnosticsState.diagnostics.totalBoundaryRegions}</strong>
+                  </div>
+                </div>
+                <div className="diagnostic-list">
+                  <p>
+                    Matched regions:{" "}
+                    {formatNameList(regionJoinDiagnosticsState.diagnostics.matchedRegionNames)}
+                  </p>
+                  <p>
+                    Unmatched RUKS region names:{" "}
+                    {formatNameList(
+                      regionJoinDiagnosticsState.diagnostics.unmatchedRuksRegionNames,
+                    )}
+                  </p>
+                  <p>
+                    Unmatched DAGI regions:{" "}
+                    {formatNameList(
+                      regionJoinDiagnosticsState.diagnostics.unmatchedBoundaryRegionNames,
+                    )}
+                  </p>
+                </div>
+              </>
+            ) : null}
+            {isRegionView && regionJoinDiagnosticsState.status === "idle" ? (
+              <p className="muted">
+                Region join diagnostics are waiting for the DAGI region boundaries to
+                load.
+              </p>
+            ) : null}
+            {!isRegionView ? (
+              <p className="muted">
+                Switch geography detail to `Region` to inspect the exact-name join
+                diagnostics for the current disease, year, age group, and sex selection.
+              </p>
+            ) : null}
+          </article>
+
+          <article className="panel panel--wide">
+            <div className="panel__header">
+              <h2>Source and methodology</h2>
+            </div>
+            <div className="source-stack">
+              <p className="source-note">{directRuksSourceNote}</p>
+              <p className="source-note source-note--derived">{derivedRuksSourceNote}</p>
+            </div>
+            <div className="checklist">
+              <p>1. Region diagnostics use an explicit exact-name join for `region_name = DAGI.Navn`.</p>
+              <p>2. The current Bornholm duplicate handling remains local, visible, and temporary until the upstream issue is clarified.</p>
+              <p>3. The region choropleth stays blocked until one measure contract is selected deliberately.</p>
+            </div>
+            <div className="resource-links">
+              {methodologyLinks.map((link) => (
+                <a
+                  key={link.href}
+                  href={link.href}
+                  className="resource-link"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  {link.label}
+                </a>
+              ))}
+            </div>
+          </article>
+
           <article className="panel panel--wide">
             <div className="panel__header">
               <h2>Implementation track</h2>
@@ -657,6 +1339,36 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
         </section>
       </section>
     </main>
+  );
+}
+
+function RegionMapShape({
+  feature,
+  row,
+  minValue,
+  maxValue,
+  emptyLabel,
+}: {
+  feature: SvgRegionBoundaryFeature;
+  row: RuksRegionRateMapRow | null;
+  minValue: number;
+  maxValue: number;
+  emptyLabel: string;
+}) {
+  const value = row?.value ?? null;
+
+  return (
+    <path
+      d={feature.path}
+      className="region-map__shape"
+      fill={getRegionFillColor(value, minValue, maxValue)}
+    >
+      <title>
+        {value === null
+          ? `${feature.name}: ${emptyLabel}`
+          : `${feature.name}: ${formatMetricValue(value)} pr. 100.000`}
+      </title>
+    </path>
   );
 }
 

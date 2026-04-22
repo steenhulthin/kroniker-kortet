@@ -7,11 +7,15 @@ This project is a good fit for a small multi-agent delivery loop, but the next l
 1. Audit KOL data quality and document what is additive, what is not, and which upstream anomalies must be handled.
 2. Preselect `KOL` in the UI and keep the preview path transparent enough to validate values before map rendering.
 3. Apply the temporary Bornholm normalization in this project and keep it explicitly documented as a local assumption.
-4. Define the geography join contract for region and municipality with KOL as the reference slice.
-5. Add the first real choropleth for regional KOL data.
-6. Add municipality KOL after duplicate-row handling and join diagnostics are in place.
-7. Generalize from KOL to the rest of the disease list only after the KOL path is trusted.
-8. Add visible source and methodology text using the required RUKS credit wording.
+4. Implement a temporary live WFS/GML region-boundary path for the first map prototype.
+5. Define the geography join contract for region and municipality with KOL as the reference slice.
+6. Audit the rate rows that match the current region filters and write down the unresolved measure choice instead of guessing.
+7. Add explicit region join diagnostics before the choropleth is treated as trustworthy.
+8. Define the first map's measure contract when both incidence and prevalence match the current rate filters.
+9. Add the first real choropleth for regional KOL data.
+10. Add municipality KOL after duplicate-row handling and join diagnostics are in place.
+11. Generalize from KOL to the rest of the disease list only after the KOL path is trusted.
+12. Add visible source and methodology text using the required RUKS credit wording.
 
 ## Recommended baseline loop
 
@@ -116,9 +120,11 @@ Recommended first slices:
 1. KOL data-quality audit and written acceptance thresholds
 2. KOL default selection in the UI
 3. Temporary Bornholm normalization
-4. Geography join contract
-5. Region KOL map
-6. Municipality KOL map
+4. Temporary region WFS/GML path
+5. Geography join contract
+6. Rate-candidate audit
+7. Region join diagnostics
+8. Measure contract
 
 ## Setup B: Dual-track loop with shared QA
 
@@ -130,8 +136,9 @@ Flow:
    - Track 1: UI/data
    - Track 2: spatial/map
 2. `Frontend/Data Worker` handles tasks 1 to 3.
-3. `Mapping/Spatial Worker` handles tasks 4 to 6, but can begin with a mocked join interface while waiting for final filter wiring.
-4. `QA Expert` verifies each track separately, then does an integration pass.
+3. `Mapping/Spatial Worker` handles tasks 4, 5, and 7, but can begin with a mocked join interface while waiting for final filter wiring.
+4. `Orchestrator` owns tasks 6 and 8 so measure ambiguity is resolved explicitly rather than inside map code.
+5. `QA Expert` verifies each track separately, then does an integration pass.
 
 Use this when:
 
@@ -182,31 +189,54 @@ Use this when:
 - duplicate identical-dimensional rows keep the non-zero value
 - the workaround is scoped as temporary project behavior, not passed off as confirmed source truth
 
-### Task 4: Geography contract
+### Task 4: Temporary region WFS/GML path
+
+- the app can fetch region boundaries from DAGI WFS
+- the returned GML is parsed into a rendering-friendly structure
+- the temporary path is isolated enough to swap out later
+
+### Task 5: Geography contract
 
 - region and municipality join fields are explicitly documented
 - assumptions are written down
 - no invented upstream fields are introduced
 - KOL is the reference slice for proving the contract
 
-### Task 5: First map
+### Task 6: Rate-candidate audit
+
+- the currently matching region-rate rows are enumerated for the active KOL slice
+- the doc states whether prevalence, incidence, or both survive the current filter and unit constraints
+- the unresolved choice is recorded as a blocker if product intent is still ambiguous
+
+### Task 7: Region join diagnostics
+
+- temporary region joins report missing matches rather than silently coloring polygons as empty
+- duplicate region stat rows are surfaced clearly
+- the diagnostic path is available before the first real map is called done
+
+### Task 8: Measure contract
+
+- the first choropleth is tied to an explicit measure choice rather than only to the generic rate unit
+- if both incidence and prevalence fit the active filters, the ambiguity is surfaced rather than guessed
+
+### Task 9: First map
 
 - the placeholder panel is replaced with a real region map
 - the map uses KOL and `Antal personer pr. 100.000 borgere`
 - boundary loading is separated from disease data loading
 
-### Task 6: Municipality KOL map
+### Task 10: Municipality KOL map
 
 - municipality mode is backed by a real join
 - duplicate or conflicting statistic rows are handled explicitly
 - missing joins and suspicious values are visible and debuggable
 
-### Task 7: Multi-disease rollout
+### Task 11: Multi-disease rollout
 
 - the data path proven on KOL is generalized without changing the source contract
 - other diseases are enabled only after KOL still passes QA
 
-### Task 8: Attribution and methodology
+### Task 12: Attribution and methodology
 
 - the required RUKS credit wording is visible in the product
 - derived calculations are labeled as own calculations
@@ -232,9 +262,12 @@ This fits the current repo because the data/filter work and the map/join work ar
 3. `QA Expert`: verify KOL totals, sex consistency, loading states, and typed boundaries.
 4. `Orchestrator`: create a follow-up task if the worker exposed a missing data contract.
 5. `Frontend/Data Worker`: apply the temporary Bornholm normalization with a clear doc trail.
-6. `Mapping/Spatial Worker`: implement the region join contract and first region KOL map.
-7. `QA Expert`: verify KOL choropleth correctness and regressions.
-8. `Orchestrator`: decide whether municipality KOL is ready or should remain a separate next task.
+6. `Mapping/Spatial Worker`: implement the temporary region WFS/GML path and the region join contract.
+7. `Orchestrator`: define or surface the measure contract if the region metric is still ambiguous.
+8. `Orchestrator`: keep the region map blocked until the measure contract and join diagnostics are closed.
+9. `Mapping/Spatial Worker`: implement the first region KOL map.
+10. `QA Expert`: verify KOL choropleth correctness and regressions.
+11. `Orchestrator`: decide whether municipality KOL is ready or should remain a separate next task.
 
 ## Practical caution
 
@@ -249,12 +282,21 @@ Use this as the default loop order unless the orchestrator creates a prerequisit
 | T1 | Audit KOL data quality and write acceptance thresholds | `QA Expert` | additive checks and anomalies documented | `done` |
 | T2 | Preselect KOL and keep the validation preview trustworthy | `Frontend/Data Worker` | KOL is default and values are traceable | `done` |
 | T3 | Apply temporary Bornholm normalization in this project | `Frontend/Data Worker` | workaround is explicit and scoped | `done` |
-| T4 | Define and document geography join contract | `Mapping/Spatial Worker` | no invented fields, assumptions explicit | `todo` |
-| T5 | Replace placeholder with first real region KOL map | `Mapping/Spatial Worker` | map is real, not decorative | `todo` |
-| T6 | Add municipality KOL with duplicate-row safeguards | `Mapping/Spatial Worker` | suspicious rows and joins are debuggable | `todo` |
-| T7 | Generalize the proven KOL path to more diseases | `Frontend/Data Worker` | KOL still passes after expansion | `todo` |
-| T8 | Add attribution and methodology copy | `Frontend/Data Worker` | required source wording is visible | `todo` |
-| T9 | Final integration pass | `QA Expert` | all eight tasks verified together | `todo` |
+| T4 | Implement temporary region WFS/GML boundary path | `Mapping/Spatial Worker` | temporary path is explicit and isolated | `done` |
+| T5 | Define and document geography join contract | `Mapping/Spatial Worker` | no invented fields, assumptions explicit | `done` |
+| T5a | Audit region rate candidates and capture the unresolved measure choice | `Orchestrator` | ambiguity is documented with the exact surviving candidates | `done` |
+| T5b | Add region join diagnostics for the temporary name-based join | `Mapping/Spatial Worker` | missing or duplicate joins are visible before map sign-off | `done` |
+| T6 | Define the first map's measure contract | `Orchestrator` | ambiguity is surfaced, not guessed | `blocked` |
+| T7 | Replace placeholder with first real region KOL map | `Mapping/Spatial Worker` | map is real, not decorative | `blocked` |
+| T8 | Add municipality KOL with duplicate-row safeguards | `Mapping/Spatial Worker` | suspicious rows and joins are debuggable | `todo` |
+| T9 | Generalize the proven KOL path to more diseases | `Frontend/Data Worker` | KOL still passes after expansion | `todo` |
+| T10 | Add attribution and methodology copy | `Frontend/Data Worker` | required source wording is visible | `done` |
+| T11 | Final integration pass | `QA Expert` | all core tasks verified together | `todo` |
+
+Current blocker notes:
+
+- `T6` remains blocked because the current region-rate query still finds multiple matching measure codes and the project has not chosen one explicitly.
+- `T7` remains blocked by `T6` because the temporary region prototype should not be called the first real map until the metric choice is explicit.
 
 ## Default prompts
 

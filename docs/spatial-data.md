@@ -34,6 +34,15 @@ Verified from the current capabilities document:
 - Temporary project assumption: duplicate KOL municipality rows for Bornholm are treated as a Christiansø-related artifact until the upstream data issue is clarified
 - That assumption affects the statistical side before the geometry join, not the boundary geometry itself
 
+## Current implementation state
+
+- The temporary DAGI region WFS/GML fetch-and-parse path exists and is good enough for a region prototype.
+- The geography join contract is documented and currently relies on exact name matching as the first pass.
+- Exact-name region join diagnostics are visible in the app for the active region selection.
+- The first real region map should still be treated as blocked rather than done.
+- Current blockers:
+  - the filtered region-rate query can still match more than one measure code, so the first-map measure contract is not closed
+
 ## Join Contract
 
 The WFS-side schema is good enough to support a first explicit join contract:
@@ -95,14 +104,40 @@ Project implication:
 
 ## Recommended Next Implementation
 
-1. Implement a typed join contract in code with:
+1. Keep region join diagnostics in code and extend the same pattern to municipalities later with:
+   - joined feature count
+   - missing geography names
+   - duplicate statistic rows by geography and active filter set
+2. Implement a typed join contract in code with:
    - RUKS name column
    - DAGI name column
    - DAGI code column
    - join strategy and fallback strategy
-2. Start with exact name matching for regions.
-3. Reuse the same contract shape for municipalities.
-4. Add an explicit lookup-table path as the fallback instead of scattering manual string fixes.
+3. Start with exact name matching for regions.
+4. Reuse the same contract shape for municipalities.
+5. Add an explicit lookup-table path as the fallback instead of scattering manual string fixes.
+6. Close the first-map measure contract before calling the region prototype production-ready.
+
+## Temporary Region Prototype
+
+Until a final boundary delivery artifact is prepared, the project can take a temporary region-first path:
+
+- fetch `dagi:Regionsinddeling` live from DAGI WFS
+- parse the returned GML in the browser
+- render only the five regions as a prototype toward the first real choropleth
+
+This is a temporary implementation choice, not the final delivery contract.
+
+Reasoning:
+
+- the service is already a verified source in this project
+- region geometry is small enough to prototype safely
+- it lets the product prove the map/join path before committing to `PMTiles` or `FlatGeobuf`
+
+Guardrail:
+
+- keep the parsing and rendering helpers isolated so the project can swap the transport later without rewriting the choropleth logic
+- do not describe this prototype as the first completed real region map until the measure contract and join diagnostics are closed
 
 ## Format direction
 
@@ -141,17 +176,17 @@ The current product direction is:
 
 - sidebar controls for disease, geography detail, year, age group, and sex
 - main map view switching between municipalities and regions
-- choropleth coloring based on `Antal personer pr. 100.000 borgere`
+- choropleth coloring based on an explicit first-map measure choice, with `Antal personer pr. 100.000 borgere` still the intended target label
 
 That means the final boundary delivery format must support smooth thematic rendering and hover/click interaction for a filtered statistical layer.
 
 ## Metric note
 
-The first map should prioritize the rate-style measure:
+The first map is still blocked on the exact measure choice, but it should prioritize a rate-style measure:
 
 - source label: `Antal personer pr. 100.000 borgere`
 
-This is the intended default choropleth metric for the dashboard.
+This remains the intended default choropleth metric for the dashboard once the measure contract is explicit.
 
 ## Open implementation questions
 
