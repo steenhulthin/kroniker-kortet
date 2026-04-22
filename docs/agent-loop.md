@@ -1,15 +1,16 @@
 # Agent Loop
 
-This project is a good fit for a small multi-agent delivery loop because the next six tasks are sequential at the product level but still benefit from specialized review.
+This project is a good fit for a small multi-agent delivery loop, but the next loop should stop trying to advance every disease at once. The highest-value path is a KOL-first vertical slice with explicit data-quality checks before the choropleth is treated as trustworthy.
 
 ## Current task set
 
-1. Add real filter state in React for disease, geography detail, year, age group, and sex.
-2. Add DuckDB-Wasm query helpers that open the remote `ruks_hovedresultater_long.parquet`.
-3. Wire the filters to data-driven query helpers.
-4. Define the geography join contract for municipality and region boundaries.
-5. Add the first actual map layer, ideally starting with regions.
-6. Join filtered rates to polygons and color by `Antal personer pr. 100.000 borgere`.
+1. Audit KOL data quality and document what is additive, what is not, and which upstream anomalies must be handled.
+2. Preselect `KOL` in the UI and keep the preview path transparent enough to validate values before map rendering.
+3. Define the geography join contract for region and municipality with KOL as the reference slice.
+4. Add the first real choropleth for regional KOL data.
+5. Add municipality KOL after duplicate-row handling and join diagnostics are in place.
+6. Generalize from KOL to the rest of the disease list only after the KOL path is trusted.
+7. Add visible source and methodology text using the required RUKS credit wording.
 
 ## Recommended baseline loop
 
@@ -34,6 +35,7 @@ Responsibilities:
 - split work into small implementation slices
 - decide when a new subtask is needed
 - keep the task list aligned with `docs/roadmap.md`, `docs/dashboard-spec.md`, and `docs/spatial-data.md`
+- treat KOL as the reference disease until QA says the path is trustworthy
 - block merges that skip required contracts or verification
 
 Good prompts:
@@ -45,10 +47,10 @@ Good prompts:
 
 Responsibilities:
 
-- implement filter state
-- add DuckDB-Wasm loading and query helpers in `src/lib/`
+- implement KOL-first UI behavior and filter defaults
+- keep DuckDB-Wasm loading and query helpers in `src/lib/`
 - keep typed helpers out of components when practical
-- drive UI options from actual data domains instead of hardcoded arrays
+- add validation-friendly adapters so the map path can be compared against known KOL totals
 
 Good prompts:
 
@@ -63,6 +65,7 @@ Responsibilities:
 - start with `region` if municipality joins are not yet stable
 - add the first real choropleth rendering path
 - keep disease data and geometry as separate artifacts
+- surface missing joins, duplicate stat rows, and other KOL data issues clearly
 
 Good prompts:
 
@@ -84,6 +87,8 @@ Required review questions:
 - "Are filters actually interactive and reflected in results?"
 - "Is the map real, and is the metric coming from the dataset?"
 - "Are assumptions documented where geography joins are fragile?"
+- "Does the KOL count path reconcile within expected rounding tolerance?"
+- "Have duplicate or conflicting municipality rows been handled explicitly rather than silently ignored?"
 
 ## Loop setup options
 
@@ -106,12 +111,12 @@ Use this when:
 
 Recommended first slices:
 
-1. Real filter state
-2. DuckDB distinct-value and filtered-row helpers
-3. Filter wiring to query results
-4. Geography join contract
-5. Region map
-6. Choropleth join and coloring
+1. KOL data-quality audit and written acceptance thresholds
+2. KOL default selection in the UI
+3. Geography join contract
+4. Region KOL map
+5. Municipality KOL map
+6. Generalization to more diseases
 
 ## Setup B: Dual-track loop with shared QA
 
@@ -155,43 +160,49 @@ Use this when:
 
 ## Suggested done criteria per task
 
-### Task 1: Filter state
+### Task 1: KOL data audit
 
-- all five filter groups are interactive
-- state is stored in React
+- additive checks are defined against `Antal personer med sygdom`
+- region-versus-country and municipality-versus-country tolerances are written down
+- sex consistency is checked as `Kvinder + Mænd = Begge` on additive rows
+- known anomalies or caveats are documented before map work continues
+
+### Task 2: KOL-first UI state
+
+- `KOL` is the default disease selection
+- all five filter groups remain interactive
 - selected values visibly update
-- no hardcoded "always first chip active" behavior remains
+- the preview path is still usable for debugging totals
 
-### Task 2: DuckDB helpers
-
-- Parquet loads from the selected release asset
-- helper functions live in `src/lib/`
-- app can query distinct filter values and filtered metric rows
-- errors surface cleanly in the UI
-
-### Task 3: Filter wiring
-
-- filter options come from data where practical
-- changing a filter changes the queried result set
-- UI loading and empty states are handled
-
-### Task 4: Geography contract
+### Task 3: Geography contract
 
 - region and municipality join fields are explicitly documented
 - assumptions are written down
 - no invented upstream fields are introduced
+- KOL is the reference slice for proving the contract
 
-### Task 5: First map
+### Task 4: First map
 
-- the placeholder panel is replaced with a real map
-- region mode works even if municipality mode is deferred
+- the placeholder panel is replaced with a real region map
+- the map uses KOL and `Antal personer pr. 100.000 borgere`
 - boundary loading is separated from disease data loading
 
-### Task 6: Choropleth join
+### Task 5: Municipality KOL map
 
-- polygons are colored by `Antal personer pr. 100.000 borgere`
-- filter changes update the map
-- missing joins are visible and debuggable
+- municipality mode is backed by a real join
+- duplicate or conflicting statistic rows are handled explicitly
+- missing joins and suspicious values are visible and debuggable
+
+### Task 6: Multi-disease rollout
+
+- the data path proven on KOL is generalized without changing the source contract
+- other diseases are enabled only after KOL still passes QA
+
+### Task 7: Attribution and methodology
+
+- the required RUKS credit wording is visible in the product
+- derived calculations are labeled as own calculations
+- methodology and caveat links point back to Sundhedsdatabanken documentation
 
 ## Best-fit recommendation for this repo
 
@@ -208,13 +219,13 @@ This fits the current repo because the data/filter work and the map/join work ar
 
 ## Example implementation loop
 
-1. `Orchestrator`: define the next slice and acceptance criteria.
-2. `Frontend/Data Worker`: implement filter state plus one DuckDB query helper.
-3. `QA Expert`: verify filter interactivity, loading states, and typed boundaries.
+1. `Orchestrator`: define the KOL slice and acceptance criteria.
+2. `Frontend/Data Worker`: implement or expose the KOL validation path.
+3. `QA Expert`: verify KOL totals, sex consistency, loading states, and typed boundaries.
 4. `Orchestrator`: create a follow-up task if the worker exposed a missing data contract.
-5. `Mapping/Spatial Worker`: implement region join contract and first region map.
-6. `QA Expert`: verify choropleth correctness and regressions.
-7. `Orchestrator`: decide whether municipality mode is ready or should remain a separate next task.
+5. `Mapping/Spatial Worker`: implement the region join contract and first region KOL map.
+6. `QA Expert`: verify KOL choropleth correctness and regressions.
+7. `Orchestrator`: decide whether municipality KOL is ready or should remain a separate next task.
 
 ## Practical caution
 
@@ -226,19 +237,20 @@ Use this as the default loop order unless the orchestrator creates a prerequisit
 
 | ID | Task | Primary agent | QA focus | Status |
 | --- | --- | --- | --- | --- |
-| T1 | Implement real React filter state | `Frontend/Data Worker` | selections persist and visibly change | `todo` |
-| T2 | Add DuckDB-Wasm query helpers for remote Parquet | `Frontend/Data Worker` | real data loads, errors handled | `todo` |
-| T3 | Drive filter options and result queries from data | `Frontend/Data Worker` | filters affect results end to end | `todo` |
-| T4 | Define and document geography join contract | `Mapping/Spatial Worker` | no invented fields, assumptions explicit | `todo` |
-| T5 | Replace placeholder with first real region map | `Mapping/Spatial Worker` | map is real, not decorative | `todo` |
-| T6 | Join filtered metric to polygons and color map | `Mapping/Spatial Worker` | choropleth updates from filters | `todo` |
-| T7 | Final integration pass | `QA Expert` | all six tasks verified together | `todo` |
+| T1 | Audit KOL data quality and write acceptance thresholds | `QA Expert` | additive checks and anomalies documented | `todo` |
+| T2 | Preselect KOL and keep the validation preview trustworthy | `Frontend/Data Worker` | KOL is default and values are traceable | `todo` |
+| T3 | Define and document geography join contract | `Mapping/Spatial Worker` | no invented fields, assumptions explicit | `todo` |
+| T4 | Replace placeholder with first real region KOL map | `Mapping/Spatial Worker` | map is real, not decorative | `todo` |
+| T5 | Add municipality KOL with duplicate-row safeguards | `Mapping/Spatial Worker` | suspicious rows and joins are debuggable | `todo` |
+| T6 | Generalize the proven KOL path to more diseases | `Frontend/Data Worker` | KOL still passes after expansion | `todo` |
+| T7 | Add attribution and methodology copy | `Frontend/Data Worker` | required source wording is visible | `todo` |
+| T8 | Final integration pass | `QA Expert` | all seven tasks verified together | `todo` |
 
 ## Default prompts
 
 ### Orchestrator prompt
 
-"Review `docs/agent-loop.md`, `docs/roadmap.md`, `docs/dashboard-spec.md`, and `docs/spatial-data.md`. Pick the next smallest meaningful task, restate done criteria, assign the right worker, and create a follow-up task if a prerequisite is missing."
+"Review `docs/agent-loop.md`, `docs/roadmap.md`, `docs/dashboard-spec.md`, and `docs/spatial-data.md`. Pick the next KOL-first task, restate done criteria, assign the right worker, and create a follow-up task if a prerequisite or anomaly is missing."
 
 ### Frontend/Data Worker prompt
 
@@ -250,7 +262,7 @@ Use this as the default loop order unless the orchestrator creates a prerequisit
 
 ### QA Expert prompt
 
-"Review the latest code or config change against the task done criteria. Report pass or fail, note any gaps, and provide 1 to 5 human tests with expected outcomes and exact feedback-routing instructions."
+"Review the latest code or config change against the task done criteria. Report pass or fail, note any gaps, check whether KOL still reconciles within the expected tolerance, and provide 1 to 5 human tests with expected outcomes and exact feedback-routing instructions."
 
 ## QA handoff rule
 
