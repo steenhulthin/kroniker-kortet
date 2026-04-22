@@ -28,12 +28,19 @@ type FilterGroup = RuksFilterDomainKey;
 
 type FilterState = Record<FilterGroup, string>;
 
-type SidebarFilter = {
-  key: FilterGroup;
-  title: string;
-  hint?: string;
-  source: "duckdb" | "local";
-};
+type SidebarFilter =
+  | {
+      key: RuksDistinctDomainKey;
+      title: string;
+      hint?: string;
+      source: "duckdb";
+    }
+  | {
+      key: "geoLevel";
+      title: string;
+      hint?: string;
+      source: "local";
+    };
 
 type DuckDbFilterOptions = Record<RuksDistinctDomainKey, RuksDistinctValue[]>;
 
@@ -363,6 +370,7 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
       return;
     }
 
+    const activeFilters = filters;
     let cancelled = false;
 
     setPreviewState({ status: "loading" });
@@ -372,7 +380,7 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
         const rows = await queryRuksMetricRows<PreviewRow>(
           release,
           ruksFilterContract,
-          filters,
+          activeFilters,
           {
             limit: previewRowLimit,
             orderByColumns: ["geo_level", "disease_label", "year"],
