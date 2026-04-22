@@ -6,11 +6,12 @@ This project is a good fit for a small multi-agent delivery loop, but the next l
 
 1. Audit KOL data quality and document what is additive, what is not, and which upstream anomalies must be handled.
 2. Preselect `KOL` in the UI and keep the preview path transparent enough to validate values before map rendering.
-3. Define the geography join contract for region and municipality with KOL as the reference slice.
-4. Add the first real choropleth for regional KOL data.
-5. Add municipality KOL after duplicate-row handling and join diagnostics are in place.
-6. Generalize from KOL to the rest of the disease list only after the KOL path is trusted.
-7. Add visible source and methodology text using the required RUKS credit wording.
+3. Apply the temporary Bornholm normalization in this project and keep it explicitly documented as a local assumption.
+4. Define the geography join contract for region and municipality with KOL as the reference slice.
+5. Add the first real choropleth for regional KOL data.
+6. Add municipality KOL after duplicate-row handling and join diagnostics are in place.
+7. Generalize from KOL to the rest of the disease list only after the KOL path is trusted.
+8. Add visible source and methodology text using the required RUKS credit wording.
 
 ## Recommended baseline loop
 
@@ -89,6 +90,7 @@ Required review questions:
 - "Are assumptions documented where geography joins are fragile?"
 - "Does the KOL count path reconcile within expected rounding tolerance?"
 - "Have duplicate or conflicting municipality rows been handled explicitly rather than silently ignored?"
+- "Is the temporary Bornholm/Christiansø assumption still visible in docs and code where it affects results?"
 
 ## Loop setup options
 
@@ -113,10 +115,10 @@ Recommended first slices:
 
 1. KOL data-quality audit and written acceptance thresholds
 2. KOL default selection in the UI
-3. Geography join contract
-4. Region KOL map
-5. Municipality KOL map
-6. Generalization to more diseases
+3. Temporary Bornholm normalization
+4. Geography join contract
+5. Region KOL map
+6. Municipality KOL map
 
 ## Setup B: Dual-track loop with shared QA
 
@@ -174,31 +176,37 @@ Use this when:
 - selected values visibly update
 - the preview path is still usable for debugging totals
 
-### Task 3: Geography contract
+### Task 3: Temporary Bornholm normalization
+
+- the local workaround is explicit in docs and code
+- duplicate identical-dimensional rows keep the non-zero value
+- the workaround is scoped as temporary project behavior, not passed off as confirmed source truth
+
+### Task 4: Geography contract
 
 - region and municipality join fields are explicitly documented
 - assumptions are written down
 - no invented upstream fields are introduced
 - KOL is the reference slice for proving the contract
 
-### Task 4: First map
+### Task 5: First map
 
 - the placeholder panel is replaced with a real region map
 - the map uses KOL and `Antal personer pr. 100.000 borgere`
 - boundary loading is separated from disease data loading
 
-### Task 5: Municipality KOL map
+### Task 6: Municipality KOL map
 
 - municipality mode is backed by a real join
 - duplicate or conflicting statistic rows are handled explicitly
 - missing joins and suspicious values are visible and debuggable
 
-### Task 6: Multi-disease rollout
+### Task 7: Multi-disease rollout
 
 - the data path proven on KOL is generalized without changing the source contract
 - other diseases are enabled only after KOL still passes QA
 
-### Task 7: Attribution and methodology
+### Task 8: Attribution and methodology
 
 - the required RUKS credit wording is visible in the product
 - derived calculations are labeled as own calculations
@@ -223,9 +231,10 @@ This fits the current repo because the data/filter work and the map/join work ar
 2. `Frontend/Data Worker`: implement or expose the KOL validation path.
 3. `QA Expert`: verify KOL totals, sex consistency, loading states, and typed boundaries.
 4. `Orchestrator`: create a follow-up task if the worker exposed a missing data contract.
-5. `Mapping/Spatial Worker`: implement the region join contract and first region KOL map.
-6. `QA Expert`: verify KOL choropleth correctness and regressions.
-7. `Orchestrator`: decide whether municipality KOL is ready or should remain a separate next task.
+5. `Frontend/Data Worker`: apply the temporary Bornholm normalization with a clear doc trail.
+6. `Mapping/Spatial Worker`: implement the region join contract and first region KOL map.
+7. `QA Expert`: verify KOL choropleth correctness and regressions.
+8. `Orchestrator`: decide whether municipality KOL is ready or should remain a separate next task.
 
 ## Practical caution
 
@@ -237,14 +246,15 @@ Use this as the default loop order unless the orchestrator creates a prerequisit
 
 | ID | Task | Primary agent | QA focus | Status |
 | --- | --- | --- | --- | --- |
-| T1 | Audit KOL data quality and write acceptance thresholds | `QA Expert` | additive checks and anomalies documented | `todo` |
-| T2 | Preselect KOL and keep the validation preview trustworthy | `Frontend/Data Worker` | KOL is default and values are traceable | `todo` |
-| T3 | Define and document geography join contract | `Mapping/Spatial Worker` | no invented fields, assumptions explicit | `todo` |
-| T4 | Replace placeholder with first real region KOL map | `Mapping/Spatial Worker` | map is real, not decorative | `todo` |
-| T5 | Add municipality KOL with duplicate-row safeguards | `Mapping/Spatial Worker` | suspicious rows and joins are debuggable | `todo` |
-| T6 | Generalize the proven KOL path to more diseases | `Frontend/Data Worker` | KOL still passes after expansion | `todo` |
-| T7 | Add attribution and methodology copy | `Frontend/Data Worker` | required source wording is visible | `todo` |
-| T8 | Final integration pass | `QA Expert` | all seven tasks verified together | `todo` |
+| T1 | Audit KOL data quality and write acceptance thresholds | `QA Expert` | additive checks and anomalies documented | `done` |
+| T2 | Preselect KOL and keep the validation preview trustworthy | `Frontend/Data Worker` | KOL is default and values are traceable | `done` |
+| T3 | Apply temporary Bornholm normalization in this project | `Frontend/Data Worker` | workaround is explicit and scoped | `done` |
+| T4 | Define and document geography join contract | `Mapping/Spatial Worker` | no invented fields, assumptions explicit | `todo` |
+| T5 | Replace placeholder with first real region KOL map | `Mapping/Spatial Worker` | map is real, not decorative | `todo` |
+| T6 | Add municipality KOL with duplicate-row safeguards | `Mapping/Spatial Worker` | suspicious rows and joins are debuggable | `todo` |
+| T7 | Generalize the proven KOL path to more diseases | `Frontend/Data Worker` | KOL still passes after expansion | `todo` |
+| T8 | Add attribution and methodology copy | `Frontend/Data Worker` | required source wording is visible | `todo` |
+| T9 | Final integration pass | `QA Expert` | all eight tasks verified together | `todo` |
 
 ## Default prompts
 

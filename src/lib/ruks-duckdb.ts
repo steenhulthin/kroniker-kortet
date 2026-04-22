@@ -113,7 +113,14 @@ export async function queryRuksMetricRows<Row extends Record<string, unknown> = 
   release: RuksLatestRelease,
   contract: RuksQueryContract,
   filters: RuksFilterSelection,
-  options: { limit?: number; orderByColumns?: readonly string[] } = {},
+  options: {
+    limit?: number;
+    orderByColumns?: readonly string[];
+    dedupe?: {
+      keyColumns: readonly string[];
+      valueColumn: string;
+    };
+  } = {},
 ): Promise<Row[]> {
   return withRuksConnection(release, "query filtered metric rows", async (sourceName, connection) => {
     const projection =
@@ -123,6 +130,12 @@ export async function queryRuksMetricRows<Row extends Record<string, unknown> = 
 
     const whereClauses = buildFilterClauses(contract.filterColumns, filters);
     const whereSql = whereClauses.length > 0 ? `WHERE ${whereClauses.join(" AND ")}` : "";
+    const baseQuery = `SELECT ${projection}
+       FROM ${parquetRelationSql(sourceName)}
+       ${whereSql}`;
+    const dedupedQuery = options.dedupe
+      ? buildDedupedMetricQuery(baseQuery, options.dedupe)
+      : baseQuery;
     const orderBySql =
       options.orderByColumns && options.orderByColumns.length > 0
         ? `ORDER BY ${options.orderByColumns.map(quoteIdentifier).join(", ")}`
@@ -130,9 +143,7 @@ export async function queryRuksMetricRows<Row extends Record<string, unknown> = 
     const limitSql = typeof options.limit === "number" ? `LIMIT ${Math.max(0, Math.floor(options.limit))}` : "";
 
     const table = await connection.query(
-      `SELECT ${projection}
-       FROM ${parquetRelationSql(sourceName)}
-       ${whereSql}
+      `${dedupedQuery}
        ${orderBySql}
        ${limitSql}`,
     );
@@ -271,6 +282,22 @@ function buildFilterClauses(
   }
 
   return clauses;
+}
+
+function buildDedupedMetricQuery(
+  baseQuery: string,
+  dedupe: {
+    keyColumns: readonly string[];
+    valueColumn: string;
+  },
+): string {
+  const keyColumnsSql = dedupe.keyColumns.map(quoteIdentifier);
+  const groupedProjection = keyColumnsSql.join(", ");
+  const separator = groupedProjection.length > 0 ? ", " : "";
+
+  return `SELECT ${groupedProjection}${separator}MAX(${quoteIdentifier(dedupe.valueColumn)}) AS ${quoteIdentifier(dedupe.valueColumn)}
+    FROM (${baseQuery}) AS metric_rows
+    GROUP BY ${groupedProjection}`;
 }
 
 function normalizeDistinctValue(value: unknown): string | null {

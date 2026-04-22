@@ -38,6 +38,8 @@
 - Use `Antal personer med sygdom` for additive consistency checks
 - Do not expect `Antal personer pr. 100.000 borgere` or standardized rates to sum across geography or sex
 - Keep any data-quality handling explicit, especially if duplicate dimensional rows appear in upstream extracts
+- Temporary project assumption: duplicate KOL rows for Bornholm municipality are treated as a Christiansø-related artifact until the upstream data issue is clarified
+- In this project, when identical dimensional rows appear with both `0` and a non-zero value, keep the non-zero value and document that the normalization happened locally
 
 ## Source And Credit
 

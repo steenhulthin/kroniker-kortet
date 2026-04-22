@@ -99,6 +99,7 @@ const sidebarFilters: SidebarFilter[] = [
 ];
 
 const dataDrivenFilterKeys = ["disease", "year", "ageGroup", "sex"] as const;
+const preferredDiseaseSlug = "kol";
 
 const localGeographyOptions: FilterDefinition[] = [
   { label: "Kommune", value: "municipality" },
@@ -143,6 +144,15 @@ const ruksFilterContract: RuksQueryContract = {
 };
 
 const previewRowLimit = 6;
+const previewDedupedKeyColumns = [
+  "disease_label",
+  "geo_level",
+  "region_name",
+  "municipality_name",
+  "sex_label",
+  "age_group_label",
+  "year",
+] as const;
 
 function toFilterDefinitions(values: readonly RuksDistinctValue[]): FilterDefinition[] {
   return values.map((item) => ({
@@ -156,8 +166,12 @@ function getSelectedFilterLabel(selectedValue: string, options: readonly FilterD
 }
 
 function createInitialFilterState(options: DuckDbFilterOptions): FilterState {
+  const preferredDisease =
+    options.disease.find((option) => option.value === preferredDiseaseSlug) ??
+    options.disease[0];
+
   return {
-    disease: options.disease[0]?.value ?? "",
+    disease: preferredDisease?.value ?? "",
     geoLevel: "municipality",
     year: options.year[0]?.value ?? "",
     ageGroup: options.ageGroup[0]?.value ?? "",
@@ -382,6 +396,10 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
           ruksFilterContract,
           activeFilters,
           {
+            dedupe: {
+              keyColumns: previewDedupedKeyColumns,
+              valueColumn: "value",
+            },
             limit: previewRowLimit,
             orderByColumns: ["geo_level", "disease_label", "year"],
           },
@@ -485,6 +503,10 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
               <p className="muted">
                 Showing {release.tag} for {selectionSummary}
               </p>
+              <p className="muted">
+                Temporary project assumption: duplicate Bornholm rows are treated as a
+                Christiansoe-related artifact and collapsed locally until clarified upstream.
+              </p>
             </div>
             <span className="pill">Live DuckDB</span>
           </div>
@@ -583,6 +605,7 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
               <p>1. Header with title.</p>
               <p>2. Sidebar for disease, geography detail, year, age group, and sex.</p>
               <p>3. Main map colored by `Antal personer pr. 100.000 borgere`.</p>
+              <p>4. Start by proving the KOL path before broadening to other diseases.</p>
             </div>
           </article>
 
@@ -608,6 +631,17 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
                 <dd>DAGI WFS</dd>
               </div>
             </dl>
+          </article>
+
+          <article className="panel">
+            <div className="panel__header">
+              <h2>KOL validation focus</h2>
+            </div>
+            <div className="checklist">
+              <p>1. KOL is the default disease in this first validation slice.</p>
+              <p>2. Use the preview table to sanity-check geography, sex, age, and year selections.</p>
+              <p>3. Treat additive count checks separately from rates and standardized values.</p>
+            </div>
           </article>
 
           <article className="panel panel--wide">

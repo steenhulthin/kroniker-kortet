@@ -15,6 +15,7 @@
 - Introduce manifest and summary JSON as secondary metadata sources
 - Add a KOL-first validation pass for country, region, municipality, and sex consistency on additive rows
 - Document upstream caveats that affect interpretation, especially rounding, algorithm changes, and KOL's weaker pre-2015 comparability
+- Add a temporary local normalization step for the Bornholm duplicate-row issue, then remove it once the upstream data project is clarified
 
 ## Phase 3: Geography
 

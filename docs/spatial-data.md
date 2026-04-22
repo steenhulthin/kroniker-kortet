@@ -31,6 +31,8 @@ Verified from the current capabilities document:
 - RUKS observations should continue to live in a tabular analytical format.
 - Geometry should be prepared in a web-friendly format for static hosting.
 - Join logic between RUKS geography labels and boundary features must be explicit and documented.
+- Temporary project assumption: duplicate KOL municipality rows for Bornholm are treated as a Christiansø-related artifact until the upstream data issue is clarified
+- That assumption affects the statistical side before the geometry join, not the boundary geometry itself
 
 ## Format direction
 
