@@ -453,14 +453,10 @@ dd {
   stroke: rgba(20, 40, 29, 0.55);
 }
 
-.map-canvas__focus {
-  position: absolute;
-  left: 32px;
-  bottom: 32px;
+.map-status-panel {
   display: grid;
   gap: 12px;
-  width: min(760px, calc(100% - 64px));
-  max-width: 760px;
+  margin-top: 16px;
   padding: 24px;
   border-radius: 24px;
   background: rgba(255, 251, 244, 0.9);
@@ -704,14 +700,6 @@ pre {
 
   .map-canvas {
     min-height: 420px;
-  }
-
-  .map-canvas__focus {
-    left: 16px;
-    right: 16px;
-    bottom: 16px;
-    max-width: none;
-    width: auto;
   }
 
   .preview-summary {

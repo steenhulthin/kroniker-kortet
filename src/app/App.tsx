@@ -1303,111 +1303,111 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
               <div className="legend-ramp" />
               <span>{regionLegendLabels.end}</span>
             </div>
+          </div>
 
-            <div className="map-canvas__focus map-preview">
-              <p className="map-canvas__metric">{selectedMetricLabel}</p>
-              {isKOLRegionPrototype && regionMetricState.status === "ready" ? (
-                <div className="preview-state">
-                  <h3>{selectedMeasureLabel}</h3>
+          <div className="map-status-panel map-preview">
+            <p className="map-canvas__metric">{selectedMetricLabel}</p>
+            {isKOLRegionPrototype && regionMetricState.status === "ready" ? (
+              <div className="preview-state">
+                <h3>{selectedMeasureLabel}</h3>
+                <p className="muted">
+                  Region values are joined by exact region name and colored by the
+                  selected non-standardized rate.
+                </p>
+                {isUsingFallbackRegionBoundaries ? (
                   <p className="muted">
-                    Region values are joined by exact region name and colored by the
-                    selected non-standardized rate.
+                    DAGI WFS is currently unavailable, so the map is using a temporary
+                    schematic region layer instead of official boundaries.
                   </p>
-                  {isUsingFallbackRegionBoundaries ? (
-                    <p className="muted">
-                      DAGI WFS is currently unavailable, so the map is using a temporary
-                      schematic region layer instead of official boundaries.
-                    </p>
-                  ) : null}
-                </div>
-              ) : null}
-              {filters?.geoLevel === "region" &&
-              filters.disease !== preferredDiseaseSlug ? (
-                <div className="preview-state">
-                  <h3>KOL-first region prototype</h3>
+                ) : null}
+              </div>
+            ) : null}
+            {filters?.geoLevel === "region" &&
+            filters.disease !== preferredDiseaseSlug ? (
+              <div className="preview-state">
+                <h3>KOL-first region prototype</h3>
+                <p className="muted">
+                  The first real choropleth is being proven on KOL only. Other diseases
+                  remain in preview-only mode until the KOL region path passes QA and a
+                  measure is chosen explicitly.
+                </p>
+              </div>
+            ) : null}
+
+            {isKOLRegionPrototype && regionMetricState.status === "blocked" ? (
+              <div className="preview-state">
+                <h3>Map slice paused</h3>
+                <p className="muted">{regionMetricState.message}</p>
+              </div>
+            ) : null}
+
+            {isKOLRegionPrototype &&
+            regionBoundaryState.status === "loading" ? (
+              <div className="preview-state">
+                <h3>Loading region boundaries</h3>
+                <p className="muted">
+                  Fetching the temporary DAGI WFS region geometry path for the first real
+                  choropleth prototype.
+                </p>
+              </div>
+            ) : null}
+
+            {isKOLRegionPrototype &&
+            regionBoundaryState.status === "error" ? (
+              <div className="preview-state preview-state--error">
+                <h3>Region boundary load failed</h3>
+                <pre className="error-box">{regionBoundaryState.message}</pre>
+              </div>
+            ) : null}
+
+            {isKOLRegionPrototype &&
+            regionMetricState.status === "loading" ? (
+              <div className="preview-state">
+                <h3>Loading region rates</h3>
+                <p className="muted">
+                  Querying the non-standardized rate rows for the selected KOL view.
+                </p>
+              </div>
+            ) : null}
+
+            {isKOLRegionPrototype &&
+            regionMetricState.status === "empty" ? (
+              <div className="preview-state">
+                <h3>No region rates found</h3>
+                <p className="muted">
+                  DuckDB returned no regional rate rows for the selected filters.
+                </p>
+              </div>
+            ) : null}
+
+            {isKOLRegionPrototype &&
+            regionMetricState.status === "error" ? (
+              <div className="preview-state preview-state--error">
+                <h3>
+                  {isAmbiguousRegionMeasureMessage(regionMetricState.message)
+                    ? "Region measure contract still unresolved"
+                    : "Region rate query failed"}
+                </h3>
+                {isAmbiguousRegionMeasureMessage(regionMetricState.message) ? (
                   <p className="muted">
-                    The first real choropleth is being proven on KOL only. Other diseases
-                    remain in preview-only mode until the KOL region path passes QA and a
-                    measure is chosen explicitly.
+                    The exact-name region join is available, but the map stays
+                    intentionally blocked until one region measure is selected on
+                    purpose.
                   </p>
-                </div>
-              ) : null}
+                ) : null}
+                <pre className="error-box">{regionMetricState.message}</pre>
+              </div>
+            ) : null}
 
-              {isKOLRegionPrototype && regionMetricState.status === "blocked" ? (
-                <div className="preview-state">
-                  <h3>Map slice paused</h3>
-                  <p className="muted">{regionMetricState.message}</p>
-                </div>
-              ) : null}
-
-              {isKOLRegionPrototype &&
-              regionBoundaryState.status === "loading" ? (
-                <div className="preview-state">
-                  <h3>Loading region boundaries</h3>
-                  <p className="muted">
-                    Fetching the temporary DAGI WFS region geometry path for the first real
-                    choropleth prototype.
-                  </p>
-                </div>
-              ) : null}
-
-              {isKOLRegionPrototype &&
-              regionBoundaryState.status === "error" ? (
-                <div className="preview-state preview-state--error">
-                  <h3>Region boundary load failed</h3>
-                  <pre className="error-box">{regionBoundaryState.message}</pre>
-                </div>
-              ) : null}
-
-              {isKOLRegionPrototype &&
-              regionMetricState.status === "loading" ? (
-                <div className="preview-state">
-                  <h3>Loading region rates</h3>
-                  <p className="muted">
-                    Querying the non-standardized rate rows for the selected KOL view.
-                  </p>
-                </div>
-              ) : null}
-
-              {isKOLRegionPrototype &&
-              regionMetricState.status === "empty" ? (
-                <div className="preview-state">
-                  <h3>No region rates found</h3>
-                  <p className="muted">
-                    DuckDB returned no regional rate rows for the selected filters.
-                  </p>
-                </div>
-              ) : null}
-
-              {isKOLRegionPrototype &&
-              regionMetricState.status === "error" ? (
-                <div className="preview-state preview-state--error">
-                  <h3>
-                    {isAmbiguousRegionMeasureMessage(regionMetricState.message)
-                      ? "Region measure contract still unresolved"
-                      : "Region rate query failed"}
-                  </h3>
-                  {isAmbiguousRegionMeasureMessage(regionMetricState.message) ? (
-                    <p className="muted">
-                      The exact-name region join is available, but the map stays
-                      intentionally blocked until one region measure is selected on
-                      purpose.
-                    </p>
-                  ) : null}
-                  <pre className="error-box">{regionMetricState.message}</pre>
-                </div>
-              ) : null}
-
-              {filters?.geoLevel === "municipality" ? (
-                <div className="preview-state">
-                  <h3>Region map is live first</h3>
-                  <p className="muted">
-                    Municipality mode still uses the validation preview while the region
-                    choropleth prototype is being proven and QA-approved.
-                  </p>
-                </div>
-              ) : null}
-            </div>
+            {filters?.geoLevel === "municipality" ? (
+              <div className="preview-state">
+                <h3>Region map is live first</h3>
+                <p className="muted">
+                  Municipality mode still uses the validation preview while the region
+                  choropleth prototype is being proven and QA-approved.
+                </p>
+              </div>
+            ) : null}
           </div>
         </article>
 
