@@ -55,6 +55,9 @@ const regionRateMapContract: RuksQueryContract = {
       value: "disease_slug",
       label: "disease_label",
     },
+    geoLevel: {
+      value: "geo_level",
+    },
     year: {
       value: "year",
     },

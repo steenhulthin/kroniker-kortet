@@ -230,6 +230,164 @@ dd {
   opacity: 0.58;
 }
 
+.select-control select {
+  width: 100%;
+  min-height: 46px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0 42px 0 16px;
+  color: var(--ink);
+  background:
+    linear-gradient(45deg, transparent 50%, var(--accent-deep) 50%) right 19px
+      center / 7px 7px no-repeat,
+    linear-gradient(135deg, var(--accent-deep) 50%, transparent 50%) right
+      13px center / 7px 7px no-repeat,
+    rgba(255, 255, 255, 0.72);
+  font: inherit;
+  appearance: none;
+}
+
+.select-control select:disabled {
+  opacity: 0.58;
+}
+
+.range-control {
+  display: grid;
+  gap: 12px;
+}
+
+.range-control label {
+  display: block;
+}
+
+.range-control__slider {
+  --range-start: 0%;
+  --range-end: 100%;
+  position: relative;
+  height: 38px;
+}
+
+.range-control__track {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 16px;
+  height: 8px;
+  border-radius: 999px;
+  background:
+    linear-gradient(
+      90deg,
+      rgba(20, 40, 29, 0.12) 0%,
+      rgba(20, 40, 29, 0.12) var(--range-start),
+      var(--accent-deep) var(--range-start),
+      var(--accent-deep) var(--range-end),
+      rgba(20, 40, 29, 0.12) var(--range-end),
+      rgba(20, 40, 29, 0.12) 100%
+    );
+}
+
+.range-control input[type="range"] {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 38px;
+  margin: 0;
+  background: transparent;
+  appearance: none;
+  pointer-events: none;
+}
+
+.range-control input[type="range"]::-webkit-slider-runnable-track {
+  height: 8px;
+  background: transparent;
+}
+
+.range-control input[type="range"]::-moz-range-track {
+  height: 8px;
+  background: transparent;
+}
+
+.range-control input[type="range"]::-webkit-slider-thumb {
+  width: 22px;
+  height: 22px;
+  margin-top: -7px;
+  border: 2px solid white;
+  border-radius: 999px;
+  background: var(--accent-deep);
+  box-shadow: 0 2px 8px rgba(20, 40, 29, 0.22);
+  appearance: none;
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.range-control input[type="range"]::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border: 2px solid white;
+  border-radius: 999px;
+  background: var(--accent-deep);
+  box-shadow: 0 2px 8px rgba(20, 40, 29, 0.22);
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.range-control input[type="range"]:disabled::-webkit-slider-thumb {
+  cursor: not-allowed;
+  opacity: 0.52;
+}
+
+.range-control input[type="range"]:disabled::-moz-range-thumb {
+  cursor: not-allowed;
+  opacity: 0.52;
+}
+
+.range-control__ticks {
+  display: flex;
+  justify-content: space-between;
+  color: var(--ink-soft);
+  font-size: 0.82rem;
+}
+
+.checkbox-list {
+  display: grid;
+  gap: 8px;
+  max-height: 260px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.checkbox-option {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.54);
+}
+
+.checkbox-option input {
+  width: 18px;
+  height: 18px;
+  margin: 1px 0 0;
+  accent-color: var(--accent-deep);
+}
+
+.checkbox-option span {
+  min-width: 0;
+  line-height: 1.35;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
 .main-stage,
 .support-grid {
   display: grid;
@@ -320,6 +478,11 @@ dd {
 }
 
 .map-preview {
+  display: grid;
+  gap: 16px;
+}
+
+.data-panel {
   display: grid;
   gap: 16px;
 }

@@ -16,11 +16,18 @@ export type RuksDuckDbBootstrap = {
 
 export type RuksFilterDomainKey = "disease" | "geoLevel" | "year" | "ageGroup" | "sex";
 
-export type RuksDistinctDomainKey = Exclude<RuksFilterDomainKey, "geoLevel">;
+export type RuksDistinctDomainKey = RuksFilterDomainKey;
 
 export type RuksFilterColumnContract = Record<RuksFilterDomainKey, string>;
 
-export type RuksFilterSelection = Partial<Record<RuksFilterDomainKey, string>>;
+export type RuksFilterRange = {
+  min: string;
+  max: string;
+};
+
+export type RuksFilterSelectionValue = string | readonly string[] | RuksFilterRange;
+
+export type RuksFilterSelection = Partial<Record<RuksFilterDomainKey, RuksFilterSelectionValue>>;
 
 export type RuksDistinctColumnContract = Record<
   RuksDistinctDomainKey,
@@ -278,7 +285,31 @@ function buildFilterClauses(
       continue;
     }
 
-    clauses.push(`${quoteIdentifier(filterColumns[domain])} = ${quoteString(value)}`);
+    const columnSql = quoteIdentifier(filterColumns[domain]);
+
+    if (isFilterValueList(value)) {
+      const literals = value.filter((item) => item !== "").map(quoteLiteral);
+
+      if (literals.length > 0) {
+        clauses.push(`${columnSql} IN (${literals.join(", ")})`);
+      }
+
+      continue;
+    }
+
+    if (isFilterRange(value)) {
+      if (value.min !== "") {
+        clauses.push(`${columnSql} >= ${quoteLiteral(value.min)}`);
+      }
+
+      if (value.max !== "") {
+        clauses.push(`${columnSql} <= ${quoteLiteral(value.max)}`);
+      }
+
+      continue;
+    }
+
+    clauses.push(`${columnSql} = ${quoteLiteral(value)}`);
   }
 
   return clauses;
@@ -318,6 +349,20 @@ function quoteIdentifier(value: string): string {
 
 function quoteString(value: string): string {
   return `'${value.replaceAll("'", "''")}'`;
+}
+
+function quoteLiteral(value: string): string {
+  return /^-?\d+(\.\d+)?$/.test(value) ? value : quoteString(value);
+}
+
+function isFilterValueList(
+  value: RuksFilterSelectionValue,
+): value is readonly string[] {
+  return Array.isArray(value);
+}
+
+function isFilterRange(value: RuksFilterSelectionValue): value is RuksFilterRange {
+  return typeof value === "object" && !Array.isArray(value);
 }
 
 function createRuksDuckDbError(message: string, cause: unknown): Error {

@@ -1,4 +1,4 @@
-import { startTransition, useEffect, useState } from "react";
+import { startTransition, useEffect, useState, type CSSProperties } from "react";
 import {
   DEFAULT_LATEST_RELEASE_URL,
   formatDateLabel,
@@ -10,6 +10,7 @@ import {
   queryRuksMetricRows,
   type RuksDistinctDomainKey,
   type RuksDistinctValue,
+  type RuksFilterSelection,
   type RuksFilterDomainKey,
   type RuksQueryContract,
 } from "../lib/ruks-duckdb";
@@ -41,7 +42,11 @@ type FilterDefinition = {
 
 type FilterGroup = RuksFilterDomainKey;
 
-type FilterState = Record<FilterGroup, string>;
+type FilterState = Omit<Record<FilterGroup, string>, "year" | "ageGroup"> & {
+  yearStart: string;
+  yearEnd: string;
+  ageGroups: string[];
+};
 
 type SidebarFilter =
   | {
@@ -142,7 +147,7 @@ const sidebarFilters: SidebarFilter[] = [
   },
 ];
 
-const dataDrivenFilterKeys = ["disease", "year", "ageGroup", "sex"] as const;
+const dataDrivenFilterKeys = ["disease", "geoLevel", "year", "ageGroup", "sex"] as const;
 const preferredDiseaseSlug = "kol";
 const directRuksSourceNote =
   "Kilde: Sundhedsdatastyrelsen, Register for Udvalgte Kroniske Sygdomme og Svære Psykiske Lidelser (RUKS) (pr. 28. november 2025).";
@@ -185,6 +190,9 @@ const ruksFilterContract: RuksQueryContract = {
     disease: {
       value: "disease_slug",
       label: "disease_label",
+    },
+    geoLevel: {
+      value: "geo_level",
     },
     year: {
       value: "year",
@@ -240,16 +248,64 @@ function getSelectedFilterLabel(selectedValue: string, options: readonly FilterD
   return options.find((option) => option.value === selectedValue)?.label ?? selectedValue;
 }
 
+function toGeographyOptions(values: readonly RuksDistinctValue[]): FilterDefinition[] {
+  const knownLabels = new Map(localGeographyOptions.map((option) => [option.value, option.label]));
+
+  return values.map((item) => ({
+    label: knownLabels.get(item.value) ?? item.label,
+    value: item.value,
+  }));
+}
+
+function isAllAgesOption(option: FilterDefinition): boolean {
+  const normalized = `${option.value} ${option.label}`.toLocaleLowerCase("da-DK");
+
+  return normalized.includes("alle") && normalized.includes("aldr");
+}
+
+function getAgeGroupSortValue(option: FilterDefinition): number {
+  if (isAllAgesOption(option)) {
+    return Number.NEGATIVE_INFINITY;
+  }
+
+  const match = option.label.match(/\d+/) ?? option.value.match(/\d+/);
+
+  return match ? Number(match[0]) : Number.MAX_SAFE_INTEGER;
+}
+
+function getSortedAgeGroupOptions(options: readonly FilterDefinition[]): FilterDefinition[] {
+  return [...options].sort((left, right) => {
+    const ageComparison = getAgeGroupSortValue(left) - getAgeGroupSortValue(right);
+
+    if (ageComparison !== 0) {
+      return ageComparison;
+    }
+
+    return left.label.localeCompare(right.label, "da-DK");
+  });
+}
+
 function createInitialFilterState(options: DuckDbFilterOptions): FilterState {
   const preferredDisease =
     options.disease.find((option) => option.value === preferredDiseaseSlug) ??
     options.disease[0];
+  const geographyOptions = toGeographyOptions(options.geoLevel);
+  const preferredGeography =
+    geographyOptions.find((option) => option.value === "municipality") ??
+    geographyOptions[0];
+  const years = getSortedYearOptions(toFilterDefinitions(options.year));
+  const firstYear = years[0]?.value ?? "";
+  const lastYear = years.at(-1)?.value ?? firstYear;
+  const ageGroups = getSortedAgeGroupOptions(toFilterDefinitions(options.ageGroup));
+  const defaultAgeGroup =
+    ageGroups.find((option) => isAllAgesOption(option)) ?? ageGroups[0];
 
   return {
     disease: preferredDisease?.value ?? "",
-    geoLevel: "municipality",
-    year: options.year[0]?.value ?? "",
-    ageGroup: options.ageGroup[0]?.value ?? "",
+    geoLevel: preferredGeography?.value ?? "",
+    yearStart: firstYear,
+    yearEnd: lastYear,
+    ageGroups: defaultAgeGroup ? [defaultAgeGroup.value] : [],
     sex: options.sex[0]?.value ?? "",
   };
 }
@@ -282,17 +338,79 @@ function buildSelectionSummary(
   filters: FilterState,
   filterOptions: DuckDbFilterOptions,
 ): string {
-  return sidebarFilters
-    .map((filter) => {
-      if (filter.source === "local") {
-        return getSelectedFilterLabel(filters[filter.key], localGeographyOptions);
-      }
-
-      const options = toFilterDefinitions(filterOptions[filter.key]);
-
-      return getSelectedFilterLabel(filters[filter.key], options);
-    })
+  const disease = getSelectedFilterLabel(
+    filters.disease,
+    toFilterDefinitions(filterOptions.disease),
+  );
+  const geography = getSelectedFilterLabel(
+    filters.geoLevel,
+    toGeographyOptions(filterOptions.geoLevel),
+  );
+  const ageGroups = filters.ageGroups
+    .map((ageGroup) =>
+      getSelectedFilterLabel(ageGroup, toFilterDefinitions(filterOptions.ageGroup)),
+    )
     .join(", ");
+  const sex = getSelectedFilterLabel(filters.sex, toFilterDefinitions(filterOptions.sex));
+
+  return `${disease}, ${geography}, ${formatYearRange(filters)}, ${ageGroups || "no age groups"}, ${sex}`;
+}
+
+function getSortedYearOptions(options: readonly FilterDefinition[]): FilterDefinition[] {
+  return [...options].sort((left, right) => Number(left.value) - Number(right.value));
+}
+
+function getYearRangeIndexes(
+  filters: FilterState,
+  yearOptions: readonly FilterDefinition[],
+): { startIndex: number; endIndex: number } {
+  const startIndex = Math.max(
+    0,
+    yearOptions.findIndex((option) => option.value === filters.yearStart),
+  );
+  const endIndex = Math.max(
+    startIndex,
+    yearOptions.findIndex((option) => option.value === filters.yearEnd),
+  );
+
+  return { startIndex, endIndex };
+}
+
+function formatYearRange(filters: FilterState): string {
+  return filters.yearStart === filters.yearEnd
+    ? filters.yearStart
+    : `${filters.yearStart}-${filters.yearEnd}`;
+}
+
+function toPreviewFilters(filters: FilterState): RuksFilterSelection {
+  return {
+    disease: filters.disease,
+    geoLevel: filters.geoLevel,
+    year: {
+      min: filters.yearStart,
+      max: filters.yearEnd,
+    },
+    ageGroup: filters.ageGroups,
+    sex: filters.sex,
+  };
+}
+
+function toMapSnapshotFilters(filters: FilterState): {
+  disease: string;
+  year: string;
+  ageGroup: string;
+  sex: string;
+} {
+  return {
+    disease: filters.disease,
+    year: filters.yearEnd,
+    ageGroup: filters.ageGroups[0] ?? "",
+    sex: filters.sex,
+  };
+}
+
+function hasSingleMapSlice(filters: FilterState): boolean {
+  return filters.yearStart === filters.yearEnd && filters.ageGroups.length === 1;
 }
 
 function formatMetricValue(value: number): string {
@@ -361,6 +479,13 @@ function getRegionLegendLabels(
     };
   }
 
+  if (regionMetricState.status === "blocked") {
+    return {
+      start: "Table range",
+      end: "Map paused",
+    };
+  }
+
   return {
     start: "Loading",
     end: "Ready",
@@ -384,6 +509,10 @@ function getRegionMapEmptyLabel(
     isAmbiguousRegionMeasureMessage(regionMetricState.message)
   ) {
     return "awaiting explicit measure contract";
+  }
+
+  if (regionMetricState.status === "blocked") {
+    return "single year and age group required";
   }
 
   if (regionMetricState.status === "loading") {
@@ -558,7 +687,7 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
 
     async function loadFilterOptions() {
       try {
-        const [disease, year, ageGroup, sex] = await Promise.all(
+        const [disease, geoLevel, year, ageGroup, sex] = await Promise.all(
           dataDrivenFilterKeys.map((key) =>
             queryRuksDistinctFilterValues(release, ruksFilterContract, key),
           ),
@@ -570,6 +699,7 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
 
         const options: DuckDbFilterOptions = {
           disease,
+          geoLevel,
           year,
           ageGroup,
           sex,
@@ -611,7 +741,7 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
       return;
     }
 
-    const activeFilters = filters;
+    const activeFilters = toMapSnapshotFilters(filters);
     let cancelled = false;
 
     setPreviewState({ status: "loading" });
@@ -677,7 +807,17 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
       return;
     }
 
-    const activeFilters = filters;
+    if (!hasSingleMapSlice(filters)) {
+      setRegionMetricState({
+        status: "blocked",
+        message:
+          "The table can show year ranges and multiple age groups, but the choropleth needs one year and one age group until an explicit aggregation rule is chosen.",
+      });
+      setRegionRateAuditState({ status: "idle" });
+      return;
+    }
+
+    const activeFilters = toPreviewFilters(filters);
     let cancelled = false;
 
     setRegionMetricState({ status: "loading" });
@@ -761,7 +901,7 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
       return;
     }
 
-    const activeFilters = filters;
+    const activeFilters = toPreviewFilters(filters);
     const boundaryRegionNames = regionBoundaryState.boundaries.features.map(
       (feature) => feature.name,
     );
@@ -819,6 +959,16 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
     filters && filterOptions
       ? getSelectedFilterLabel(filters.disease, toFilterDefinitions(filterOptions.disease))
       : "selected disease";
+  const diseaseOptions = filterOptions ? toFilterDefinitions(filterOptions.disease) : [];
+  const geographyOptions = filterOptions ? toGeographyOptions(filterOptions.geoLevel) : [];
+  const yearOptions = filterOptions
+    ? getSortedYearOptions(toFilterDefinitions(filterOptions.year))
+    : [];
+  const ageGroupOptions = filterOptions
+    ? getSortedAgeGroupOptions(toFilterDefinitions(filterOptions.ageGroup))
+    : [];
+  const sexOptions = filterOptions ? toFilterDefinitions(filterOptions.sex) : [];
+  const sexSidebarFilter = sidebarFilters.find((filter) => filter.key === "sex");
   const isRegionView = filters?.geoLevel === "region";
   const isKOLRegionPrototype =
     isRegionView && filters.disease === preferredDiseaseSlug;
@@ -866,37 +1016,98 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
         ) : null}
 
         <div className="filter-stack">
-          {sidebarFilters.map((filter) => {
-            const options =
-              filter.source === "local"
-                ? localGeographyOptions
-                : filterOptions
-                  ? toFilterDefinitions(filterOptions[filter.key])
-                  : [];
-            const selectedValue = filters?.[filter.key] ?? options[0]?.value ?? "";
+          <DropdownFilterSection
+            title="Disease"
+            options={diseaseOptions}
+            selectedValue={filters?.disease ?? ""}
+            disabled={filters === null || diseaseOptions.length === 0}
+            onSelect={(value) => {
+              setFilters((current) => (current ? { ...current, disease: value } : current));
+            }}
+          />
 
-            return (
-              <SidebarFilterSection
-                key={filter.key}
-                filter={filter}
-                options={options}
-                selectedValue={selectedValue}
-                disabled={filters === null}
-                onSelect={(value) => {
-                  setFilters((current) => {
-                    if (current === null) {
-                      return current;
-                    }
+          <DropdownFilterSection
+            title="Geographic detail"
+            hint="Switch the map between municipality and region boundaries."
+            options={geographyOptions}
+            selectedValue={filters?.geoLevel ?? ""}
+            disabled={filters === null || geographyOptions.length === 0}
+            onSelect={(value) => {
+              setFilters((current) => (current ? { ...current, geoLevel: value } : current));
+            }}
+          />
 
-                    return {
+          <YearRangeFilterSection
+            options={yearOptions}
+            filters={filters}
+            disabled={filters === null || yearOptions.length === 0}
+            onChange={(nextRange) => {
+              setFilters((current) =>
+                current
+                  ? {
                       ...current,
-                      [filter.key]: value,
-                    };
-                  });
-                }}
-              />
-            );
-          })}
+                      yearStart: nextRange.yearStart,
+                      yearEnd: nextRange.yearEnd,
+                    }
+                  : current,
+              );
+            }}
+          />
+
+          <CheckboxFilterSection
+            title="Age group"
+            options={ageGroupOptions}
+            selectedValues={filters?.ageGroups ?? []}
+            disabled={filters === null || ageGroupOptions.length === 0}
+            onToggle={(value) => {
+              setFilters((current) => {
+                if (!current) {
+                  return current;
+                }
+
+                const allAgesValue = ageGroupOptions.find((option) =>
+                  isAllAgesOption(option),
+                )?.value;
+                const isTogglingAllAges = value === allAgesValue;
+
+                if (isTogglingAllAges) {
+                  return {
+                    ...current,
+                    ageGroups: [value],
+                  };
+                }
+
+                const nextAgeGroups = current.ageGroups.includes(value)
+                  ? current.ageGroups.filter((ageGroup) => ageGroup !== value)
+                  : [
+                      ...current.ageGroups.filter(
+                        (ageGroup) => ageGroup !== allAgesValue,
+                      ),
+                      value,
+                    ];
+
+                return {
+                  ...current,
+                  ageGroups:
+                    nextAgeGroups.length > 0
+                      ? nextAgeGroups
+                      : allAgesValue
+                        ? [allAgesValue]
+                        : current.ageGroups,
+                };
+              });
+            }}
+          />
+
+          <SidebarFilterSection
+            filter={sexSidebarFilter ?? sidebarFilters[4]}
+            options={sexOptions}
+            selectedValue={filters?.sex ?? ""}
+            disabled={filters === null || sexOptions.length === 0}
+            onSelect={(value) => {
+              setFilters((current) => (current ? { ...current, sex: value } : current));
+            }}
+          />
         </div>
       </aside>
 
@@ -988,6 +1199,13 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
                 </div>
               ) : null}
 
+              {isKOLRegionPrototype && regionMetricState.status === "blocked" ? (
+                <div className="preview-state">
+                  <h3>Map slice paused</h3>
+                  <p className="muted">{regionMetricState.message}</p>
+                </div>
+              ) : null}
+
               {isKOLRegionPrototype &&
               regionBoundaryState.status === "loading" ? (
                 <div className="preview-state">
@@ -1055,83 +1273,15 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
                   </p>
                 </div>
               ) : null}
-
-              {previewState.status === "loading" ? (
-                <div className="preview-state">
-                  <h3>Querying DuckDB</h3>
-                  <p className="muted">
-                    Re-running the filtered query for the current disease, geography, year,
-                    age group, and sex selections.
-                  </p>
-                </div>
-              ) : null}
-
-              {previewState.status === "empty" ? (
-                <div className="preview-state">
-                  <h3>No matching rows</h3>
-                  <p className="muted">
-                    DuckDB returned no rows for the current filter combination.
-                  </p>
-                </div>
-              ) : null}
-
-              {previewState.status === "error" ? (
-                <div className="preview-state preview-state--error">
-                  <h3>DuckDB query failed</h3>
-                  <pre className="error-box">{previewState.message}</pre>
-                </div>
-              ) : null}
-
-              {previewState.status === "ready" ? (
-                <div className="preview-table-shell">
-                  <div className="preview-summary">
-                    <div className="preview-summary__card">
-                      <span className="preview-summary__label">Rows shown</span>
-                      <strong>{previewState.rows.length}</strong>
-                    </div>
-                    <div className="preview-summary__card">
-                      <span className="preview-summary__label">Geography</span>
-                      <strong>{filters ? getSelectedFilterLabel(filters.geoLevel, localGeographyOptions) : "—"}</strong>
-                    </div>
-                    <div className="preview-summary__card">
-                      <span className="preview-summary__label">Release</span>
-                      <strong>{release.tag}</strong>
-                    </div>
-                  </div>
-
-                  <div className="preview-table-wrap">
-                    <table className="preview-table">
-                      <thead>
-                        <tr>
-                          <th>Metric</th>
-                          <th>Geography</th>
-                          <th>Disease</th>
-                          <th>Year</th>
-                          <th>Age group</th>
-                          <th>Sex</th>
-                          <th>Value</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {previewState.rows.map((row, index) => (
-                          <tr key={`${index}-${String(row.year ?? "")}`}>
-                            <td>{formatPreviewValue(row.source_unit_label ?? row.measure_label)}</td>
-                            <td>{filters ? getGeographyValue(row, filters.geoLevel) : "—"}</td>
-                            <td>{formatPreviewValue(row.disease_label)}</td>
-                            <td>{formatPreviewValue(row.year)}</td>
-                            <td>{formatPreviewValue(row.age_group_label)}</td>
-                            <td>{formatPreviewValue(row.sex_label)}</td>
-                            <td>{formatPreviewValue(row.value)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              ) : null}
             </div>
           </div>
         </article>
+
+        <PreviewTablePanel
+          releaseTag={release.tag}
+          filters={filters}
+          previewState={previewState}
+        />
 
         <section className="support-grid">
           <article className="panel">
@@ -1342,6 +1492,108 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
   );
 }
 
+function PreviewTablePanel({
+  releaseTag,
+  filters,
+  previewState,
+}: {
+  releaseTag: string;
+  filters: FilterState | null;
+  previewState: PreviewLoadState;
+}) {
+  return (
+    <article className="panel data-panel">
+      <div className="panel__header">
+        <div>
+          <h2>Data preview</h2>
+          <p className="muted">
+            Filtered DuckDB rows for validating the map slice separately from the map.
+          </p>
+        </div>
+        <span className="pill">Table</span>
+      </div>
+
+      {previewState.status === "loading" ? (
+        <div className="preview-state">
+          <h3>Querying DuckDB</h3>
+          <p className="muted">
+            Re-running the filtered query for the current disease, geography, year range,
+            age group, and sex selections.
+          </p>
+        </div>
+      ) : null}
+
+      {previewState.status === "empty" ? (
+        <div className="preview-state">
+          <h3>No matching rows</h3>
+          <p className="muted">
+            DuckDB returned no rows for the current filter combination.
+          </p>
+        </div>
+      ) : null}
+
+      {previewState.status === "error" ? (
+        <div className="preview-state preview-state--error">
+          <h3>DuckDB query failed</h3>
+          <pre className="error-box">{previewState.message}</pre>
+        </div>
+      ) : null}
+
+      {previewState.status === "ready" ? (
+        <div className="preview-table-shell">
+          <div className="preview-summary">
+            <div className="preview-summary__card">
+              <span className="preview-summary__label">Rows shown</span>
+              <strong>{previewState.rows.length}</strong>
+            </div>
+            <div className="preview-summary__card">
+              <span className="preview-summary__label">Geography</span>
+              <strong>
+                {filters
+                  ? getSelectedFilterLabel(filters.geoLevel, localGeographyOptions)
+                  : "—"}
+              </strong>
+            </div>
+            <div className="preview-summary__card">
+              <span className="preview-summary__label">Release</span>
+              <strong>{releaseTag}</strong>
+            </div>
+          </div>
+
+          <div className="preview-table-wrap">
+            <table className="preview-table">
+              <thead>
+                <tr>
+                  <th>Metric</th>
+                  <th>Geography</th>
+                  <th>Disease</th>
+                  <th>Year</th>
+                  <th>Age group</th>
+                  <th>Sex</th>
+                  <th>Value</th>
+                </tr>
+              </thead>
+              <tbody>
+                {previewState.rows.map((row, index) => (
+                  <tr key={`${index}-${String(row.year ?? "")}`}>
+                    <td>{formatPreviewValue(row.source_unit_label ?? row.measure_label)}</td>
+                    <td>{filters ? getGeographyValue(row, filters.geoLevel) : "—"}</td>
+                    <td>{formatPreviewValue(row.disease_label)}</td>
+                    <td>{formatPreviewValue(row.year)}</td>
+                    <td>{formatPreviewValue(row.age_group_label)}</td>
+                    <td>{formatPreviewValue(row.sex_label)}</td>
+                    <td>{formatPreviewValue(row.value)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : null}
+    </article>
+  );
+}
+
 function RegionMapShape({
   feature,
   row,
@@ -1412,6 +1664,181 @@ function SidebarFilterSection({
             >
               {option.label}
             </button>
+          ))
+        )}
+      </div>
+    </section>
+  );
+}
+
+function DropdownFilterSection({
+  title,
+  hint,
+  options,
+  selectedValue,
+  disabled,
+  onSelect,
+}: {
+  title: string;
+  hint?: string;
+  options: FilterDefinition[];
+  selectedValue: string;
+  disabled: boolean;
+  onSelect: (value: string) => void;
+}) {
+  return (
+    <section className="filter-group">
+      <div className="filter-group__header">
+        <h3>{title}</h3>
+        {hint ? <p className="muted">{hint}</p> : null}
+      </div>
+      <label className="select-control">
+        <span className="sr-only">{title}</span>
+        <select
+          value={selectedValue}
+          disabled={disabled}
+          onChange={(event) => onSelect(event.target.value)}
+        >
+          {options.length === 0 ? <option value="">No options</option> : null}
+          {options.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </label>
+    </section>
+  );
+}
+
+function YearRangeFilterSection({
+  options,
+  filters,
+  disabled,
+  onChange,
+}: {
+  options: FilterDefinition[];
+  filters: FilterState | null;
+  disabled: boolean;
+  onChange: (range: { yearStart: string; yearEnd: string }) => void;
+}) {
+  const selectedRange =
+    filters && options.length > 0
+      ? getYearRangeIndexes(filters, options)
+      : { startIndex: 0, endIndex: Math.max(0, options.length - 1) };
+  const yearStart = options[selectedRange.startIndex]?.value ?? "";
+  const yearEnd = options[selectedRange.endIndex]?.value ?? "";
+  const maxIndex = Math.max(0, options.length - 1);
+  const rangeStartPercent =
+    maxIndex > 0 ? (selectedRange.startIndex / maxIndex) * 100 : 0;
+  const rangeEndPercent =
+    maxIndex > 0 ? (selectedRange.endIndex / maxIndex) * 100 : 0;
+
+  return (
+    <section className="filter-group">
+      <div className="filter-group__header">
+        <h3>Year</h3>
+        <p className="muted">{yearStart && yearEnd ? `${yearStart} to ${yearEnd}` : "No years"}</p>
+      </div>
+      <div className="range-control">
+        <div
+          className="range-control__slider"
+          style={
+            {
+              "--range-start": `${rangeStartPercent}%`,
+              "--range-end": `${rangeEndPercent}%`,
+            } as CSSProperties
+          }
+        >
+          <div className="range-control__track" aria-hidden="true" />
+          <label>
+            <span className="sr-only">Year range start</span>
+            <input
+              type="range"
+              min={0}
+              max={maxIndex}
+              step={1}
+              value={selectedRange.startIndex}
+              disabled={disabled}
+              aria-label="Year range start"
+              onChange={(event) => {
+                const nextStart = Math.min(
+                  Number(event.target.value),
+                  selectedRange.endIndex,
+                );
+
+                onChange({
+                  yearStart: options[nextStart]?.value ?? "",
+                  yearEnd,
+                });
+              }}
+            />
+          </label>
+          <label>
+            <span className="sr-only">Year range end</span>
+            <input
+              type="range"
+              min={0}
+              max={maxIndex}
+              step={1}
+              value={selectedRange.endIndex}
+              disabled={disabled}
+              aria-label="Year range end"
+              onChange={(event) => {
+                const nextEnd = Math.max(
+                  Number(event.target.value),
+                  selectedRange.startIndex,
+                );
+
+                onChange({
+                  yearStart,
+                  yearEnd: options[nextEnd]?.value ?? "",
+                });
+              }}
+            />
+          </label>
+        </div>
+        <div className="range-control__ticks" aria-hidden="true">
+          <span>{options[0]?.label ?? ""}</span>
+          <span>{options.at(-1)?.label ?? ""}</span>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function CheckboxFilterSection({
+  title,
+  options,
+  selectedValues,
+  disabled,
+  onToggle,
+}: {
+  title: string;
+  options: FilterDefinition[];
+  selectedValues: string[];
+  disabled: boolean;
+  onToggle: (value: string) => void;
+}) {
+  return (
+    <section className="filter-group">
+      <div className="filter-group__header">
+        <h3>{title}</h3>
+      </div>
+      <div className="checkbox-list">
+        {options.length === 0 ? (
+          <p className="muted">No options</p>
+        ) : (
+          options.map((option) => (
+            <label key={option.value} className="checkbox-option">
+              <input
+                type="checkbox"
+                checked={selectedValues.includes(option.value)}
+                disabled={disabled}
+                onChange={() => onToggle(option.value)}
+              />
+              <span>{option.label}</span>
+            </label>
           ))
         )}
       </div>
