@@ -59,6 +59,26 @@ export type SvgRegionBoundaryCollection = {
   features: SvgRegionBoundaryFeature[];
 };
 
+export type RegionGeoJsonBoundaryFeature = {
+  type: "Feature";
+  properties: {
+    name: string;
+    regionCode: string;
+    localId: string;
+  };
+  geometry: {
+    type: "MultiPolygon";
+    coordinates: number[][][][];
+  };
+};
+
+export type RegionGeoJsonBoundaryCollection = {
+  type: "FeatureCollection";
+  source: RegionBoundarySource;
+  crs: "EPSG:4326";
+  features: RegionGeoJsonBoundaryFeature[];
+};
+
 export type RegionBoundaryFetchOptions = {
   token?: string;
   signal?: AbortSignal;
@@ -147,6 +167,21 @@ export async function fetchTemporaryDagiRegionSvgBoundaries(
   }
 }
 
+export async function fetchTemporaryDagiRegionGeoJsonBoundaries(
+  options: RegionBoundaryFetchOptions = {},
+): Promise<RegionGeoJsonBoundaryCollection> {
+  try {
+    const collection = await fetchTemporaryDagiRegionBoundaries(options);
+    return toRegionGeoJsonBoundaryCollection(collection);
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw error;
+    }
+
+    return createFallbackRegionGeoJsonBoundaries();
+  }
+}
+
 function createFallbackRegionSvgBoundaries(): SvgRegionBoundaryCollection {
   const bounds: RegionBoundaryBounds = {
     minX: 0,
@@ -203,6 +238,118 @@ function createFallbackRegionSvgBoundaries(): SvgRegionBoundaryCollection {
   };
 }
 
+function createFallbackRegionGeoJsonBoundaries(): RegionGeoJsonBoundaryCollection {
+  return {
+    type: "FeatureCollection",
+    source: REGION_BOUNDARY_FALLBACK_SOURCE,
+    crs: "EPSG:4326",
+    features: [
+      createFallbackRegionFeature("Region Nordjylland", "1081", "fallback-region-nordjylland", [
+        [
+          [8.1, 56.55],
+          [10.62, 56.58],
+          [10.45, 57.72],
+          [8.42, 57.55],
+          [8.1, 56.55],
+        ],
+      ]),
+      createFallbackRegionFeature("Region Midtjylland", "1082", "fallback-region-midtjylland", [
+        [
+          [7.62, 56.12],
+          [7.95, 55.82],
+          [10.52, 55.82],
+          [10.62, 56.58],
+          [8.1, 56.55],
+          [7.62, 56.12],
+        ],
+      ]),
+      createFallbackRegionFeature("Region Syddanmark", "1083", "fallback-region-syddanmark", [
+        [
+          [8.05, 54.72],
+          [10.92, 54.82],
+          [10.52, 55.82],
+          [7.95, 55.82],
+          [7.48, 55.18],
+          [8.05, 54.72],
+        ],
+      ]),
+      createFallbackRegionFeature("Region Sjælland", "1085", "fallback-region-sjaelland", [
+        [
+          [10.78, 54.86],
+          [12.34, 54.92],
+          [12.24, 55.76],
+          [11.14, 55.86],
+          [10.5, 55.3],
+          [10.78, 54.86],
+        ],
+      ]),
+      createFallbackRegionFeature("Region Hovedstaden", "1084", "fallback-region-hovedstaden", [
+        [
+          [11.72, 55.42],
+          [12.78, 55.42],
+          [12.82, 56.16],
+          [11.78, 56.12],
+          [11.72, 55.42],
+        ],
+        [
+          [14.62, 54.96],
+          [15.16, 55.0],
+          [15.1, 55.32],
+          [14.68, 55.28],
+          [14.62, 54.96],
+        ],
+      ]),
+    ],
+  };
+}
+
+function createFallbackRegionFeature(
+  name: string,
+  regionCode: string,
+  localId: string,
+  polygons: number[][][],
+): RegionGeoJsonBoundaryFeature {
+  return {
+    type: "Feature",
+    properties: {
+      name,
+      regionCode,
+      localId,
+    },
+    geometry: {
+      type: "MultiPolygon",
+      coordinates: polygons.map((polygon) => [polygon]),
+    },
+  };
+}
+
+export function toRegionGeoJsonBoundaryCollection(
+  collection: RegionBoundaryCollection,
+): RegionGeoJsonBoundaryCollection {
+  return {
+    type: "FeatureCollection",
+    source: collection.source,
+    crs: "EPSG:4326",
+    features: collection.features.map((feature) => ({
+      type: "Feature",
+      properties: {
+        name: feature.name,
+        regionCode: feature.regionCode,
+        localId: feature.localId,
+      },
+      geometry: {
+        type: "MultiPolygon",
+        coordinates: feature.polygons.map((polygon) => [
+          closeGeoJsonRing(polygon.outerRing.map(projectEpsg25832ToWgs84)),
+          ...polygon.innerRings.map((ring) =>
+            closeGeoJsonRing(ring.map(projectEpsg25832ToWgs84)),
+          ),
+        ]),
+      },
+    })),
+  };
+}
+
 export function toSvgRegionBoundaryCollection(
   collection: RegionBoundaryCollection,
   options: RegionBoundarySvgOptions = {},
@@ -227,6 +374,104 @@ export function toSvgRegionBoundaryCollection(
         .join(" "),
     })),
   };
+}
+
+function closeGeoJsonRing(ring: number[][]): number[][] {
+  const first = ring[0];
+  const last = ring.at(-1);
+
+  if (!first || !last) {
+    return ring;
+  }
+
+  if (first[0] === last[0] && first[1] === last[1]) {
+    return ring;
+  }
+
+  return [...ring, first];
+}
+
+function projectEpsg25832ToWgs84(point: RegionBoundaryPoint): [number, number] {
+  const zoneNumber = 32;
+  const centralMeridianDegrees = (zoneNumber - 1) * 6 - 180 + 3;
+  const centralMeridian = degreesToRadians(centralMeridianDegrees);
+  const semiMajorAxis = 6378137;
+  const eccentricitySquared = 0.0066943799901413165;
+  const scaleFactor = 0.9996;
+  const x = point.x - 500000;
+  const y = point.y;
+  const e1 =
+    (1 - Math.sqrt(1 - eccentricitySquared)) /
+    (1 + Math.sqrt(1 - eccentricitySquared));
+  const meridionalArc = y / scaleFactor;
+  const mu =
+    meridionalArc /
+    (semiMajorAxis *
+      (1 -
+        eccentricitySquared / 4 -
+        (3 * eccentricitySquared ** 2) / 64 -
+        (5 * eccentricitySquared ** 3) / 256));
+  const footprintLatitude =
+    mu +
+    (((3 * e1) / 2 - (27 * e1 ** 3) / 32) * Math.sin(2 * mu)) +
+    (((21 * e1 ** 2) / 16 - (55 * e1 ** 4) / 32) * Math.sin(4 * mu)) +
+    ((151 * e1 ** 3) / 96) * Math.sin(6 * mu) +
+    ((1097 * e1 ** 4) / 512) * Math.sin(8 * mu);
+  const eccentricityPrimeSquared =
+    eccentricitySquared / (1 - eccentricitySquared);
+  const sinFootprintLatitude = Math.sin(footprintLatitude);
+  const cosFootprintLatitude = Math.cos(footprintLatitude);
+  const tanFootprintLatitude = Math.tan(footprintLatitude);
+  const c1 = eccentricityPrimeSquared * cosFootprintLatitude ** 2;
+  const t1 = tanFootprintLatitude ** 2;
+  const n1 =
+    semiMajorAxis /
+    Math.sqrt(1 - eccentricitySquared * sinFootprintLatitude ** 2);
+  const r1 =
+    (semiMajorAxis * (1 - eccentricitySquared)) /
+    (1 - eccentricitySquared * sinFootprintLatitude ** 2) ** 1.5;
+  const d = x / (n1 * scaleFactor);
+  const latitude =
+    footprintLatitude -
+    ((n1 * tanFootprintLatitude) / r1) *
+      (d ** 2 / 2 -
+        ((5 + 3 * t1 + 10 * c1 - 4 * c1 ** 2 - 9 * eccentricityPrimeSquared) *
+          d ** 4) /
+          24 +
+        ((61 +
+          90 * t1 +
+          298 * c1 +
+          45 * t1 ** 2 -
+          252 * eccentricityPrimeSquared -
+          3 * c1 ** 2) *
+          d ** 6) /
+          720);
+  const longitude =
+    centralMeridian +
+    (d -
+      ((1 + 2 * t1 + c1) * d ** 3) / 6 +
+      ((5 -
+        2 * c1 +
+        28 * t1 -
+        3 * c1 ** 2 +
+        8 * eccentricityPrimeSquared +
+        24 * t1 ** 2) *
+        d ** 5) /
+        120) /
+      cosFootprintLatitude;
+
+  return [
+    roundForSvg(radiansToDegrees(longitude), 6),
+    roundForSvg(radiansToDegrees(latitude), 6),
+  ];
+}
+
+function degreesToRadians(value: number): number {
+  return (value * Math.PI) / 180;
+}
+
+function radiansToDegrees(value: number): number {
+  return (value * 180) / Math.PI;
 }
 
 function parseFeatureMember(featureMember: Element): RegionBoundaryFeature {

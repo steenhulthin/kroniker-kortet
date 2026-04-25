@@ -1,4 +1,13 @@
-import { startTransition, useEffect, useState, type CSSProperties } from "react";
+import {
+  startTransition,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react";
+import maplibregl from "maplibre-gl";
+import "maplibre-gl/dist/maplibre-gl.css";
 import {
   DEFAULT_LATEST_RELEASE_URL,
   formatDateLabel,
@@ -25,9 +34,9 @@ import {
   type RuksRegionRateMapRow,
 } from "../lib/ruks-map";
 import {
-  fetchTemporaryDagiRegionSvgBoundaries,
-  type SvgRegionBoundaryCollection,
-  type SvgRegionBoundaryFeature,
+  fetchTemporaryDagiRegionGeoJsonBoundaries,
+  type RegionGeoJsonBoundaryCollection,
+  type RegionGeoJsonBoundaryFeature,
 } from "../lib/spatial-region-wfs";
 
 type ReleaseState =
@@ -93,7 +102,7 @@ type PreviewLoadState =
 
 type RegionBoundaryLoadState =
   | { status: "loading" }
-  | { status: "ready"; boundaries: SvgRegionBoundaryCollection }
+  | { status: "ready"; boundaries: RegionGeoJsonBoundaryCollection }
   | { status: "error"; message: string };
 
 type RegionMetricLoadState =
@@ -481,25 +490,6 @@ function formatMetricValue(value: number): string {
   }).format(value);
 }
 
-function getRegionFillColor(
-  value: number | null,
-  minValue: number,
-  maxValue: number,
-): string {
-  if (value === null) {
-    return "rgba(20, 40, 29, 0.12)";
-  }
-
-  if (maxValue <= minValue) {
-    return "#1f7a5a";
-  }
-
-  const ratio = (value - minValue) / (maxValue - minValue);
-  const lightness = 92 - ratio * 40;
-
-  return `hsl(152 42% ${lightness}%)`;
-}
-
 function isAmbiguousRegionMeasureMessage(message: string): boolean {
   return message.includes("Region map metric is ambiguous");
 }
@@ -714,7 +704,7 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
 
     async function loadRegionBoundaries() {
       try {
-        const boundaries = await fetchTemporaryDagiRegionSvgBoundaries();
+        const boundaries = await fetchTemporaryDagiRegionGeoJsonBoundaries();
 
         if (cancelled) {
           return;
@@ -981,7 +971,7 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
 
     const activeFilters = toPreviewFilters(filters);
     const boundaryRegionNames = regionBoundaryState.boundaries.features.map(
-      (feature) => feature.name,
+      (feature) => feature.properties.name,
     );
     let cancelled = false;
 
@@ -1268,35 +1258,14 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
           <div className="map-canvas">
             <div className="map-canvas__wash" />
             {isRegionView && regionBoundaryState.status === "ready" ? (
-              <svg
-                className={
-                  isKOLRegionPrototype && regionMetricState.status === "ready"
-                    ? "region-map"
-                    : "region-map region-map--muted"
-                }
-                viewBox={regionBoundaryState.boundaries.viewBox}
-                role="img"
-                aria-label={
-                  isKOLRegionPrototype && regionMetricState.status === "ready"
-                    ? "Region choropleth for the selected KOL filter combination"
-                    : "Region reference geometry shown in KOL-first validation mode"
-                }
-              >
-                {regionBoundaryState.boundaries.features.map((feature) => (
-                  <RegionMapShape
-                    key={feature.localId}
-                    feature={feature}
-                    row={
-                      isKOLRegionPrototype && regionMetricState.status === "ready"
-                        ? (regionValueByName.get(feature.name) ?? null)
-                        : null
-                    }
-                    minValue={regionMinValue}
-                    maxValue={regionMaxValue}
-                    emptyLabel={regionMapEmptyLabel}
-                  />
-                ))}
-              </svg>
+              <RegionMapLibre
+                boundaries={regionBoundaryState.boundaries}
+                rowsByRegion={regionValueByName}
+                minValue={regionMinValue}
+                maxValue={regionMaxValue}
+                emptyLabel={regionMapEmptyLabel}
+                muted={!(isKOLRegionPrototype && regionMetricState.status === "ready")}
+              />
             ) : null}
             <div className="map-canvas__legend">
               <span>{regionLegendLabels.start}</span>
@@ -1730,34 +1699,292 @@ function PreviewTablePanel({
   );
 }
 
-function RegionMapShape({
-  feature,
-  row,
+type RegionMapFeature = Omit<RegionGeoJsonBoundaryFeature, "properties"> & {
+  properties: RegionGeoJsonBoundaryFeature["properties"] & {
+    value: number | null;
+    valueLabel: string;
+    hasValue: boolean;
+  };
+};
+
+type RegionMapFeatureCollection = {
+  type: "FeatureCollection";
+  features: RegionMapFeature[];
+};
+
+const REGION_MAP_SOURCE_ID = "ruks-regions";
+const REGION_MAP_FILL_LAYER_ID = "ruks-region-fill";
+const REGION_MAP_LINE_LAYER_ID = "ruks-region-line";
+
+function RegionMapLibre({
+  boundaries,
+  rowsByRegion,
   minValue,
   maxValue,
   emptyLabel,
+  muted,
 }: {
-  feature: SvgRegionBoundaryFeature;
-  row: RuksRegionRateMapRow | null;
+  boundaries: RegionGeoJsonBoundaryCollection;
+  rowsByRegion: Map<string, RuksRegionRateMapRow>;
   minValue: number;
   maxValue: number;
   emptyLabel: string;
+  muted: boolean;
 }) {
-  const value = row?.value ?? null;
-
-  return (
-    <path
-      d={feature.path}
-      className="region-map__shape"
-      fill={getRegionFillColor(value, minValue, maxValue)}
-    >
-      <title>
-        {value === null
-          ? `${feature.name}: ${emptyLabel}`
-          : `${feature.name}: ${formatMetricValue(value)} pr. 100.000`}
-      </title>
-    </path>
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const mapRef = useRef<maplibregl.Map | null>(null);
+  const loadedRef = useRef(false);
+  const regionData = useMemo(
+    () => buildRegionMapFeatureCollection(boundaries, rowsByRegion, emptyLabel),
+    [boundaries, rowsByRegion, emptyLabel],
   );
+
+  useEffect(() => {
+    if (!containerRef.current || mapRef.current) {
+      return;
+    }
+
+    const map = new maplibregl.Map({
+      container: containerRef.current,
+      style: {
+        version: 8,
+        sources: {},
+        layers: [
+          {
+            id: "background",
+            type: "background",
+            paint: {
+              "background-color": "rgba(255, 255, 255, 0)",
+            },
+          },
+        ],
+      },
+      center: [10.5, 56.1],
+      zoom: 5.35,
+      attributionControl: false,
+    });
+
+    map.addControl(
+      new maplibregl.NavigationControl({ showCompass: false }),
+      "top-right",
+    );
+
+    map.on("load", () => {
+      loadedRef.current = true;
+      applyRegionMapState(map, regionData, minValue, maxValue, muted);
+      fitMapToRegionData(map, regionData);
+      map.on("click", REGION_MAP_FILL_LAYER_ID, (event) => {
+        const properties = event.features?.[0]?.properties as
+          | RegionMapFeature["properties"]
+          | undefined;
+
+        if (!properties) {
+          return;
+        }
+
+        new maplibregl.Popup({ closeButton: false })
+          .setLngLat(event.lngLat)
+          .setText(`${properties.name}: ${properties.valueLabel}`)
+          .addTo(map);
+      });
+      map.on("mouseenter", REGION_MAP_FILL_LAYER_ID, () => {
+        map.getCanvas().style.cursor = "pointer";
+      });
+      map.on("mouseleave", REGION_MAP_FILL_LAYER_ID, () => {
+        map.getCanvas().style.cursor = "";
+      });
+    });
+
+    mapRef.current = map;
+
+    return () => {
+      loadedRef.current = false;
+      map.remove();
+      mapRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    const map = mapRef.current;
+
+    if (!map || !loadedRef.current) {
+      return;
+    }
+
+    applyRegionMapState(map, regionData, minValue, maxValue, muted);
+    fitMapToRegionData(map, regionData);
+  }, [maxValue, minValue, muted, regionData]);
+
+  return <div ref={containerRef} className="region-maplibre" />;
+}
+
+function buildRegionMapFeatureCollection(
+  boundaries: RegionGeoJsonBoundaryCollection,
+  rowsByRegion: Map<string, RuksRegionRateMapRow>,
+  emptyLabel: string,
+): RegionMapFeatureCollection {
+  return {
+    type: "FeatureCollection",
+    features: boundaries.features.map((feature) => {
+      const row = rowsByRegion.get(feature.properties.name);
+      const value = row?.value ?? null;
+
+      return {
+        ...feature,
+        properties: {
+          ...feature.properties,
+          value,
+          valueLabel:
+            value === null ? emptyLabel : `${formatMetricValue(value)} pr. 100.000`,
+          hasValue: value !== null,
+        },
+      };
+    }),
+  };
+}
+
+function applyRegionMapState(
+  map: maplibregl.Map,
+  regionData: RegionMapFeatureCollection,
+  minValue: number,
+  maxValue: number,
+  muted: boolean,
+) {
+  const source = map.getSource(REGION_MAP_SOURCE_ID) as
+    | maplibregl.GeoJSONSource
+    | undefined;
+
+  if (source) {
+    source.setData(regionData as never);
+  } else {
+    map.addSource(REGION_MAP_SOURCE_ID, {
+      type: "geojson",
+      data: regionData,
+    } as never);
+  }
+
+  if (!map.getLayer(REGION_MAP_FILL_LAYER_ID)) {
+    map.addLayer({
+      id: REGION_MAP_FILL_LAYER_ID,
+      type: "fill",
+      source: REGION_MAP_SOURCE_ID,
+      paint: {},
+    });
+  }
+
+  if (!map.getLayer(REGION_MAP_LINE_LAYER_ID)) {
+    map.addLayer({
+      id: REGION_MAP_LINE_LAYER_ID,
+      type: "line",
+      source: REGION_MAP_SOURCE_ID,
+      paint: {
+        "line-color": "rgba(20, 40, 29, 0.32)",
+        "line-width": 1.2,
+      },
+    });
+  }
+
+  map.setPaintProperty(
+    REGION_MAP_FILL_LAYER_ID,
+    "fill-color",
+    getMapLibreFillColorExpression(minValue, maxValue, muted),
+  );
+  map.setPaintProperty(
+    REGION_MAP_FILL_LAYER_ID,
+    "fill-opacity",
+    muted ? 0.48 : 0.9,
+  );
+}
+
+function getMapLibreFillColorExpression(
+  minValue: number,
+  maxValue: number,
+  muted: boolean,
+) {
+  if (muted) {
+    return [
+      "case",
+      ["==", ["get", "hasValue"], true],
+      "rgba(31, 122, 90, 0.28)",
+      "rgba(20, 40, 29, 0.12)",
+    ];
+  }
+
+  if (maxValue <= minValue) {
+    return [
+      "case",
+      ["==", ["get", "hasValue"], true],
+      "#1f7a5a",
+      "rgba(20, 40, 29, 0.12)",
+    ];
+  }
+
+  return [
+    "case",
+    ["==", ["get", "hasValue"], true],
+    [
+      "interpolate",
+      ["linear"],
+      ["get", "value"],
+      minValue,
+      "#e5f1e8",
+      maxValue,
+      "#1f7a5a",
+    ],
+    "rgba(20, 40, 29, 0.12)",
+  ];
+}
+
+function fitMapToRegionData(
+  map: maplibregl.Map,
+  regionData: RegionMapFeatureCollection,
+) {
+  const bounds = getRegionDataBounds(regionData);
+
+  if (!bounds) {
+    return;
+  }
+
+  map.fitBounds(bounds, {
+    padding: 34,
+    duration: 0,
+  });
+}
+
+function getRegionDataBounds(
+  regionData: RegionMapFeatureCollection,
+): maplibregl.LngLatBoundsLike | null {
+  let minLng = Number.POSITIVE_INFINITY;
+  let minLat = Number.POSITIVE_INFINITY;
+  let maxLng = Number.NEGATIVE_INFINITY;
+  let maxLat = Number.NEGATIVE_INFINITY;
+
+  for (const feature of regionData.features) {
+    for (const polygon of feature.geometry.coordinates) {
+      for (const ring of polygon) {
+        for (const [lng, lat] of ring) {
+          minLng = Math.min(minLng, lng);
+          minLat = Math.min(minLat, lat);
+          maxLng = Math.max(maxLng, lng);
+          maxLat = Math.max(maxLat, lat);
+        }
+      }
+    }
+  }
+
+  if (
+    !Number.isFinite(minLng) ||
+    !Number.isFinite(minLat) ||
+    !Number.isFinite(maxLng) ||
+    !Number.isFinite(maxLat)
+  ) {
+    return null;
+  }
+
+  return [
+    [minLng, minLat],
+    [maxLng, maxLat],
+  ];
 }
 
 function SidebarFilterSection({

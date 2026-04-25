@@ -438,6 +438,27 @@ dd {
   height: calc(100% - 36px);
 }
 
+.region-maplibre {
+  position: absolute;
+  inset: 0;
+}
+
+.region-maplibre .maplibregl-canvas {
+  outline: none;
+}
+
+.region-maplibre .maplibregl-ctrl-group {
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid rgba(20, 40, 29, 0.12);
+  box-shadow: none;
+}
+
+.region-maplibre .maplibregl-ctrl button {
+  width: 32px;
+  height: 32px;
+}
+
 .region-map--muted {
   opacity: 0.42;
 }
