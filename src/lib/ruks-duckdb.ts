@@ -17,6 +17,7 @@ export type RuksDuckDbBootstrap = {
 export type RuksFilterDomainKey =
   | "disease"
   | "geoLevel"
+  | "measure"
   | "metric"
   | "year"
   | "ageGroup"

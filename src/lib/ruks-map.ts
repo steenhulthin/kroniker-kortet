@@ -18,7 +18,7 @@ type RegionRateCandidateRow = {
 
 export type RuksRegionRateMapFilters = Pick<
   RuksFilterSelection,
-  "disease" | "metric" | "year" | "ageGroup" | "sex"
+  "disease" | "measure" | "metric" | "year" | "ageGroup" | "sex"
 >;
 
 export type RuksRegionRateMapRow = {
@@ -46,6 +46,7 @@ const regionRateMapContract: RuksQueryContract = {
   filterColumns: {
     disease: "disease_slug",
     geoLevel: "geo_level",
+    measure: "measure_code",
     metric: "source_unit_label",
     year: "year",
     ageGroup: "age_group_code",
@@ -58,6 +59,10 @@ const regionRateMapContract: RuksQueryContract = {
     },
     geoLevel: {
       value: "geo_level",
+    },
+    measure: {
+      value: "measure_code",
+      label: "measure_label",
     },
     metric: {
       value: "source_unit_label",

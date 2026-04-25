@@ -11,7 +11,7 @@ type RegionJoinCandidateRow = {
 
 export type RuksRegionJoinDiagnosticsFilters = Pick<
   RuksFilterSelection,
-  "disease" | "metric" | "year" | "ageGroup" | "sex"
+  "disease" | "measure" | "metric" | "year" | "ageGroup" | "sex"
 >;
 
 export type RuksRegionJoinDiagnostics = {
@@ -27,6 +27,7 @@ const regionJoinContract: RuksQueryContract = {
   filterColumns: {
     disease: "disease_slug",
     geoLevel: "geo_level",
+    measure: "measure_code",
     metric: "source_unit_label",
     year: "year",
     ageGroup: "age_group_code",
@@ -39,6 +40,10 @@ const regionJoinContract: RuksQueryContract = {
     },
     geoLevel: {
       value: "geo_level",
+    },
+    measure: {
+      value: "measure_code",
+      label: "measure_label",
     },
     metric: {
       value: "source_unit_label",

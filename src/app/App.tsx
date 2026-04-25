@@ -131,6 +131,11 @@ const sidebarFilters: SidebarFilter[] = [
     source: "local",
   },
   {
+    key: "measure",
+    title: "Measure",
+    source: "duckdb",
+  },
+  {
     key: "metric",
     title: "Metric",
     source: "duckdb",
@@ -155,12 +160,14 @@ const sidebarFilters: SidebarFilter[] = [
 const dataDrivenFilterKeys = [
   "disease",
   "geoLevel",
+  "measure",
   "metric",
   "year",
   "ageGroup",
   "sex",
 ] as const;
 const preferredDiseaseSlug = "kol";
+const preferredMeasureLabel = "Antal personer med sygdom";
 const preferredMetricLabel = "Antal personer pr. 100.000 borgere";
 const directRuksSourceNote =
   "Kilde: Sundhedsdatastyrelsen, Register for Udvalgte Kroniske Sygdomme og Svære Psykiske Lidelser (RUKS) (pr. 28. november 2025).";
@@ -195,6 +202,7 @@ const ruksFilterContract: RuksQueryContract = {
   filterColumns: {
     disease: "disease_slug",
     geoLevel: "geo_level",
+    measure: "measure_code",
     metric: "source_unit_label",
     year: "year",
     ageGroup: "age_group_code",
@@ -207,6 +215,10 @@ const ruksFilterContract: RuksQueryContract = {
     },
     geoLevel: {
       value: "geo_level",
+    },
+    measure: {
+      value: "measure_code",
+      label: "measure_label",
     },
     metric: {
       value: "source_unit_label",
@@ -305,6 +317,10 @@ function createInitialFilterState(options: DuckDbFilterOptions): FilterState {
   const preferredDisease =
     options.disease.find((option) => option.value === preferredDiseaseSlug) ??
     options.disease[0];
+  const preferredMeasure =
+    options.measure.find((option) => option.label === preferredMeasureLabel) ??
+    options.measure.find((option) => option.value === preferredMeasureLabel) ??
+    options.measure[0];
   const preferredMetric =
     options.metric.find((option) => option.value === preferredMetricLabel) ??
     options.metric.find((option) => option.label === preferredMetricLabel) ??
@@ -323,6 +339,7 @@ function createInitialFilterState(options: DuckDbFilterOptions): FilterState {
   return {
     disease: preferredDisease?.value ?? "",
     geoLevel: preferredGeography?.value ?? "",
+    measure: preferredMeasure?.value ?? "",
     metric: preferredMetric?.value ?? "",
     yearStart: firstYear,
     yearEnd: lastYear,
@@ -367,6 +384,10 @@ function buildSelectionSummary(
     filters.geoLevel,
     toGeographyOptions(filterOptions.geoLevel),
   );
+  const measure = getSelectedFilterLabel(
+    filters.measure,
+    toFilterDefinitions(filterOptions.measure),
+  );
   const metric = getSelectedFilterLabel(filters.metric, toFilterDefinitions(filterOptions.metric));
   const ageGroups = filters.ageGroups
     .map((ageGroup) =>
@@ -375,7 +396,7 @@ function buildSelectionSummary(
     .join(", ");
   const sex = getSelectedFilterLabel(filters.sex, toFilterDefinitions(filterOptions.sex));
 
-  return `${disease}, ${geography}, ${metric}, ${formatYearRange(filters)}, ${ageGroups || "no age groups"}, ${sex}`;
+  return `${disease}, ${geography}, ${measure}, ${metric}, ${formatYearRange(filters)}, ${ageGroups || "no age groups"}, ${sex}`;
 }
 
 function getSortedYearOptions(options: readonly FilterDefinition[]): FilterDefinition[] {
@@ -408,6 +429,7 @@ function toPreviewFilters(filters: FilterState): RuksFilterSelection {
   return {
     disease: filters.disease,
     geoLevel: filters.geoLevel,
+    measure: filters.measure,
     metric: filters.metric,
     year: {
       min: filters.yearStart,
@@ -420,6 +442,7 @@ function toPreviewFilters(filters: FilterState): RuksFilterSelection {
 
 function toMapSnapshotFilters(filters: FilterState): {
   disease: string;
+  measure: string;
   year: string;
   ageGroup: string;
   sex: string;
@@ -427,6 +450,7 @@ function toMapSnapshotFilters(filters: FilterState): {
 } {
   return {
     disease: filters.disease,
+    measure: filters.measure,
     metric: filters.metric,
     year: filters.yearEnd,
     ageGroup: filters.ageGroups[0] ?? "",
@@ -712,7 +736,7 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
 
     async function loadFilterOptions() {
       try {
-        const [disease, geoLevel, metric, year, ageGroup, sex] = await Promise.all(
+        const [disease, geoLevel, measure, metric, year, ageGroup, sex] = await Promise.all(
           dataDrivenFilterKeys.map((key) =>
             queryRuksDistinctFilterValues(release, ruksFilterContract, key),
           ),
@@ -725,6 +749,7 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
         const options: DuckDbFilterOptions = {
           disease,
           geoLevel,
+          measure,
           metric,
           year,
           ageGroup,
@@ -767,7 +792,7 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
       return;
     }
 
-    const activeFilters = toMapSnapshotFilters(filters);
+    const activeFilters = toPreviewFilters(filters);
     let cancelled = false;
 
     setPreviewState({ status: "loading" });
@@ -862,6 +887,7 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
         const [audit, rows] = await Promise.all([
           auditRuksRegionRateCandidates(release, {
             disease: activeFilters.disease,
+            measure: activeFilters.measure,
             metric: activeFilters.metric,
             year: activeFilters.year,
             ageGroup: activeFilters.ageGroup,
@@ -869,6 +895,7 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
           }),
           queryRuksRegionRateMapRows(release, {
             disease: activeFilters.disease,
+            measure: activeFilters.measure,
             metric: activeFilters.metric,
             year: activeFilters.year,
             ageGroup: activeFilters.ageGroup,
@@ -895,6 +922,7 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
         try {
           const audit = await auditRuksRegionRateCandidates(release, {
             disease: activeFilters.disease,
+            measure: activeFilters.measure,
             metric: activeFilters.metric,
             year: activeFilters.year,
             ageGroup: activeFilters.ageGroup,
@@ -952,6 +980,7 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
           release,
           {
             disease: activeFilters.disease,
+            measure: activeFilters.measure,
             metric: activeFilters.metric,
             year: activeFilters.year,
             ageGroup: activeFilters.ageGroup,
@@ -999,6 +1028,7 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
       : "selected disease";
   const diseaseOptions = filterOptions ? toFilterDefinitions(filterOptions.disease) : [];
   const geographyOptions = filterOptions ? toGeographyOptions(filterOptions.geoLevel) : [];
+  const measureOptions = filterOptions ? toFilterDefinitions(filterOptions.measure) : [];
   const metricOptions = filterOptions ? toFilterDefinitions(filterOptions.metric) : [];
   const yearOptions = filterOptions
     ? getSortedYearOptions(toFilterDefinitions(filterOptions.year))
@@ -1083,6 +1113,16 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
             disabled={filters === null || metricOptions.length === 0}
             onSelect={(value) => {
               setFilters((current) => (current ? { ...current, metric: value } : current));
+            }}
+          />
+
+          <DropdownFilterSection
+            title="Measure"
+            options={measureOptions}
+            selectedValue={filters?.measure ?? ""}
+            disabled={filters === null || measureOptions.length === 0}
+            onSelect={(value) => {
+              setFilters((current) => (current ? { ...current, measure: value } : current));
             }}
           />
 
@@ -1614,6 +1654,7 @@ function PreviewTablePanel({
               <thead>
                 <tr>
                   <th>Metric</th>
+                  <th>Measure</th>
                   <th>Geography</th>
                   <th>Disease</th>
                   <th>Year</th>
@@ -1626,6 +1667,7 @@ function PreviewTablePanel({
                 {previewState.rows.map((row, index) => (
                   <tr key={`${index}-${String(row.year ?? "")}`}>
                     <td>{formatPreviewValue(row.source_unit_label ?? row.measure_label)}</td>
+                    <td>{formatPreviewValue(row.measure_label)}</td>
                     <td>{filters ? getGeographyValue(row, filters.geoLevel) : "—"}</td>
                     <td>{formatPreviewValue(row.disease_label)}</td>
                     <td>{formatPreviewValue(row.year)}</td>
