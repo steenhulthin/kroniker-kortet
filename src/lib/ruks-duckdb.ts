@@ -14,7 +14,13 @@ export type RuksDuckDbBootstrap = {
   bundle: duckdb.DuckDBBundle;
 };
 
-export type RuksFilterDomainKey = "disease" | "geoLevel" | "year" | "ageGroup" | "sex";
+export type RuksFilterDomainKey =
+  | "disease"
+  | "geoLevel"
+  | "metric"
+  | "year"
+  | "ageGroup"
+  | "sex";
 
 export type RuksDistinctDomainKey = RuksFilterDomainKey;
 

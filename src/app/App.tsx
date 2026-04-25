@@ -131,6 +131,11 @@ const sidebarFilters: SidebarFilter[] = [
     source: "local",
   },
   {
+    key: "metric",
+    title: "Metric",
+    source: "duckdb",
+  },
+  {
     key: "year",
     title: "Year",
     source: "duckdb",
@@ -147,8 +152,16 @@ const sidebarFilters: SidebarFilter[] = [
   },
 ];
 
-const dataDrivenFilterKeys = ["disease", "geoLevel", "year", "ageGroup", "sex"] as const;
+const dataDrivenFilterKeys = [
+  "disease",
+  "geoLevel",
+  "metric",
+  "year",
+  "ageGroup",
+  "sex",
+] as const;
 const preferredDiseaseSlug = "kol";
+const preferredMetricLabel = "Antal personer pr. 100.000 borgere";
 const directRuksSourceNote =
   "Kilde: Sundhedsdatastyrelsen, Register for Udvalgte Kroniske Sygdomme og Svære Psykiske Lidelser (RUKS) (pr. 28. november 2025).";
 const derivedRuksSourceNote =
@@ -182,6 +195,7 @@ const ruksFilterContract: RuksQueryContract = {
   filterColumns: {
     disease: "disease_slug",
     geoLevel: "geo_level",
+    metric: "source_unit_label",
     year: "year",
     ageGroup: "age_group_code",
     sex: "sex_code",
@@ -193,6 +207,9 @@ const ruksFilterContract: RuksQueryContract = {
     },
     geoLevel: {
       value: "geo_level",
+    },
+    metric: {
+      value: "source_unit_label",
     },
     year: {
       value: "year",
@@ -222,7 +239,6 @@ const ruksFilterContract: RuksQueryContract = {
   ],
 };
 
-const previewRowLimit = 6;
 const previewDedupedKeyColumns = [
   "measure_label",
   "source_unit_label",
@@ -289,6 +305,10 @@ function createInitialFilterState(options: DuckDbFilterOptions): FilterState {
   const preferredDisease =
     options.disease.find((option) => option.value === preferredDiseaseSlug) ??
     options.disease[0];
+  const preferredMetric =
+    options.metric.find((option) => option.value === preferredMetricLabel) ??
+    options.metric.find((option) => option.label === preferredMetricLabel) ??
+    options.metric[0];
   const geographyOptions = toGeographyOptions(options.geoLevel);
   const preferredGeography =
     geographyOptions.find((option) => option.value === "municipality") ??
@@ -303,6 +323,7 @@ function createInitialFilterState(options: DuckDbFilterOptions): FilterState {
   return {
     disease: preferredDisease?.value ?? "",
     geoLevel: preferredGeography?.value ?? "",
+    metric: preferredMetric?.value ?? "",
     yearStart: firstYear,
     yearEnd: lastYear,
     ageGroups: defaultAgeGroup ? [defaultAgeGroup.value] : [],
@@ -346,6 +367,7 @@ function buildSelectionSummary(
     filters.geoLevel,
     toGeographyOptions(filterOptions.geoLevel),
   );
+  const metric = getSelectedFilterLabel(filters.metric, toFilterDefinitions(filterOptions.metric));
   const ageGroups = filters.ageGroups
     .map((ageGroup) =>
       getSelectedFilterLabel(ageGroup, toFilterDefinitions(filterOptions.ageGroup)),
@@ -353,7 +375,7 @@ function buildSelectionSummary(
     .join(", ");
   const sex = getSelectedFilterLabel(filters.sex, toFilterDefinitions(filterOptions.sex));
 
-  return `${disease}, ${geography}, ${formatYearRange(filters)}, ${ageGroups || "no age groups"}, ${sex}`;
+  return `${disease}, ${geography}, ${metric}, ${formatYearRange(filters)}, ${ageGroups || "no age groups"}, ${sex}`;
 }
 
 function getSortedYearOptions(options: readonly FilterDefinition[]): FilterDefinition[] {
@@ -386,6 +408,7 @@ function toPreviewFilters(filters: FilterState): RuksFilterSelection {
   return {
     disease: filters.disease,
     geoLevel: filters.geoLevel,
+    metric: filters.metric,
     year: {
       min: filters.yearStart,
       max: filters.yearEnd,
@@ -400,9 +423,11 @@ function toMapSnapshotFilters(filters: FilterState): {
   year: string;
   ageGroup: string;
   sex: string;
+  metric: string;
 } {
   return {
     disease: filters.disease,
+    metric: filters.metric,
     year: filters.yearEnd,
     ageGroup: filters.ageGroups[0] ?? "",
     sex: filters.sex,
@@ -687,7 +712,7 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
 
     async function loadFilterOptions() {
       try {
-        const [disease, geoLevel, year, ageGroup, sex] = await Promise.all(
+        const [disease, geoLevel, metric, year, ageGroup, sex] = await Promise.all(
           dataDrivenFilterKeys.map((key) =>
             queryRuksDistinctFilterValues(release, ruksFilterContract, key),
           ),
@@ -700,6 +725,7 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
         const options: DuckDbFilterOptions = {
           disease,
           geoLevel,
+          metric,
           year,
           ageGroup,
           sex,
@@ -757,8 +783,16 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
               keyColumns: previewDedupedKeyColumns,
               valueColumn: "value",
             },
-            limit: previewRowLimit,
-            orderByColumns: ["geo_level", "disease_label", "year"],
+            orderByColumns: [
+              "geo_level",
+              "region_name",
+              "municipality_name",
+              "disease_label",
+              "year",
+              "age_group_label",
+              "sex_label",
+              "measure_label",
+            ],
           },
         );
 
@@ -817,7 +851,7 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
       return;
     }
 
-    const activeFilters = toPreviewFilters(filters);
+    const activeFilters = toMapSnapshotFilters(filters);
     let cancelled = false;
 
     setRegionMetricState({ status: "loading" });
@@ -828,12 +862,14 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
         const [audit, rows] = await Promise.all([
           auditRuksRegionRateCandidates(release, {
             disease: activeFilters.disease,
+            metric: activeFilters.metric,
             year: activeFilters.year,
             ageGroup: activeFilters.ageGroup,
             sex: activeFilters.sex,
           }),
           queryRuksRegionRateMapRows(release, {
             disease: activeFilters.disease,
+            metric: activeFilters.metric,
             year: activeFilters.year,
             ageGroup: activeFilters.ageGroup,
             sex: activeFilters.sex,
@@ -859,6 +895,7 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
         try {
           const audit = await auditRuksRegionRateCandidates(release, {
             disease: activeFilters.disease,
+            metric: activeFilters.metric,
             year: activeFilters.year,
             ageGroup: activeFilters.ageGroup,
             sex: activeFilters.sex,
@@ -915,6 +952,7 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
           release,
           {
             disease: activeFilters.disease,
+            metric: activeFilters.metric,
             year: activeFilters.year,
             ageGroup: activeFilters.ageGroup,
             sex: activeFilters.sex,
@@ -961,6 +999,7 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
       : "selected disease";
   const diseaseOptions = filterOptions ? toFilterDefinitions(filterOptions.disease) : [];
   const geographyOptions = filterOptions ? toGeographyOptions(filterOptions.geoLevel) : [];
+  const metricOptions = filterOptions ? toFilterDefinitions(filterOptions.metric) : [];
   const yearOptions = filterOptions
     ? getSortedYearOptions(toFilterDefinitions(filterOptions.year))
     : [];
@@ -1034,6 +1073,16 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
             disabled={filters === null || geographyOptions.length === 0}
             onSelect={(value) => {
               setFilters((current) => (current ? { ...current, geoLevel: value } : current));
+            }}
+          />
+
+          <DropdownFilterSection
+            title="Metric"
+            options={metricOptions}
+            selectedValue={filters?.metric ?? ""}
+            disabled={filters === null || metricOptions.length === 0}
+            onSelect={(value) => {
+              setFilters((current) => (current ? { ...current, metric: value } : current));
             }}
           />
 
