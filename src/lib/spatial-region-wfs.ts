@@ -7,6 +7,12 @@ const TEMPORARY_DAGI_REGION_CRS = "EPSG:25832";
 const TEMPORARY_DAGI_REGION_WFS_VERSION = "1.1.0";
 const TEMPORARY_DAGI_WFS_TOKEN =
   import.meta.env.VITE_DAGI_WFS_TOKEN ?? "be8f1253b8642085ffb7d11d95685a72";
+const REGION_BOUNDARY_SOURCE = "dagi-wfs-temporary";
+const REGION_BOUNDARY_FALLBACK_SOURCE = "local-region-schematic-fallback";
+
+type RegionBoundarySource =
+  | typeof REGION_BOUNDARY_SOURCE
+  | typeof REGION_BOUNDARY_FALLBACK_SOURCE;
 
 export type RegionBoundaryPoint = {
   x: number;
@@ -33,7 +39,7 @@ export type RegionBoundaryBounds = {
 };
 
 export type RegionBoundaryCollection = {
-  source: "dagi-wfs-temporary";
+  source: RegionBoundarySource;
   crs: typeof TEMPORARY_DAGI_REGION_CRS;
   bounds: RegionBoundaryBounds;
   features: RegionBoundaryFeature[];
@@ -44,7 +50,7 @@ export type SvgRegionBoundaryFeature = RegionBoundaryFeature & {
 };
 
 export type SvgRegionBoundaryCollection = {
-  source: "dagi-wfs-temporary";
+  source: RegionBoundarySource;
   crs: typeof TEMPORARY_DAGI_REGION_CRS;
   bounds: RegionBoundaryBounds;
   width: number;
@@ -119,7 +125,7 @@ export function parseTemporaryDagiRegionBoundariesGml(
   }
 
   return {
-    source: "dagi-wfs-temporary",
+    source: REGION_BOUNDARY_SOURCE,
     crs: TEMPORARY_DAGI_REGION_CRS,
     bounds: getCollectionBounds(features),
     features,
@@ -129,8 +135,72 @@ export function parseTemporaryDagiRegionBoundariesGml(
 export async function fetchTemporaryDagiRegionSvgBoundaries(
   options: RegionBoundaryFetchOptions & RegionBoundarySvgOptions = {},
 ): Promise<SvgRegionBoundaryCollection> {
-  const collection = await fetchTemporaryDagiRegionBoundaries(options);
-  return toSvgRegionBoundaryCollection(collection, options);
+  try {
+    const collection = await fetchTemporaryDagiRegionBoundaries(options);
+    return toSvgRegionBoundaryCollection(collection, options);
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw error;
+    }
+
+    return createFallbackRegionSvgBoundaries();
+  }
+}
+
+function createFallbackRegionSvgBoundaries(): SvgRegionBoundaryCollection {
+  const bounds: RegionBoundaryBounds = {
+    minX: 0,
+    minY: 0,
+    maxX: 1000,
+    maxY: 700,
+  };
+  const features: SvgRegionBoundaryFeature[] = [
+    {
+      name: "Region Nordjylland",
+      regionCode: "1081",
+      localId: "fallback-region-nordjylland",
+      polygons: [],
+      path: "M390 34 L650 34 L706 174 L606 248 L398 228 L318 118 Z",
+    },
+    {
+      name: "Region Midtjylland",
+      regionCode: "1082",
+      localId: "fallback-region-midtjylland",
+      polygons: [],
+      path: "M278 170 L608 214 L662 372 L532 496 L292 454 L198 300 Z",
+    },
+    {
+      name: "Region Syddanmark",
+      regionCode: "1083",
+      localId: "fallback-region-syddanmark",
+      polygons: [],
+      path: "M256 426 L532 474 L614 612 L470 682 L176 628 L110 500 Z",
+    },
+    {
+      name: "Region Sjælland",
+      regionCode: "1085",
+      localId: "fallback-region-sjaelland",
+      polygons: [],
+      path: "M642 430 L838 424 L924 552 L838 664 L636 612 L578 504 Z",
+    },
+    {
+      name: "Region Hovedstaden",
+      regionCode: "1084",
+      localId: "fallback-region-hovedstaden",
+      polygons: [],
+      path: "M760 294 L928 278 L972 390 L852 452 L720 402 Z",
+    },
+  ];
+
+  return {
+    source: REGION_BOUNDARY_FALLBACK_SOURCE,
+    crs: TEMPORARY_DAGI_REGION_CRS,
+    bounds,
+    width: 1000,
+    height: 700,
+    viewBox: "0 0 1000 700",
+    features,
+  };
 }
 
 export function toSvgRegionBoundaryCollection(

@@ -297,6 +297,18 @@ dd {
   pointer-events: none;
 }
 
+.range-control__input--start {
+  z-index: 2;
+}
+
+.range-control__input--end {
+  z-index: 3;
+}
+
+.range-control__slider--locked .range-control__input--start {
+  z-index: 4;
+}
+
 .range-control input[type="range"]::-webkit-slider-runnable-track {
   height: 8px;
   background: transparent;

@@ -313,6 +313,18 @@ function getSortedAgeGroupOptions(options: readonly FilterDefinition[]): FilterD
   });
 }
 
+function isPreferredMapMeasureOption(option: FilterDefinition): boolean {
+  const normalized = `${option.value} ${option.label}`.toLocaleLowerCase("da-DK");
+
+  return (
+    !normalized.includes("incidens") &&
+    (normalized.includes("personer med sygdom") ||
+      normalized.includes("prævalens") ||
+      normalized.includes("praevalens") ||
+      normalized.includes("prevalence"))
+  );
+}
+
 function createInitialFilterState(options: DuckDbFilterOptions): FilterState {
   const preferredDisease =
     options.disease.find((option) => option.value === preferredDiseaseSlug) ??
@@ -320,6 +332,7 @@ function createInitialFilterState(options: DuckDbFilterOptions): FilterState {
   const preferredMeasure =
     options.measure.find((option) => option.label === preferredMeasureLabel) ??
     options.measure.find((option) => option.value === preferredMeasureLabel) ??
+    options.measure.find((option) => isPreferredMapMeasureOption(option)) ??
     options.measure[0];
   const preferredMetric =
     options.metric.find((option) => option.value === preferredMetricLabel) ??
@@ -327,7 +340,7 @@ function createInitialFilterState(options: DuckDbFilterOptions): FilterState {
     options.metric[0];
   const geographyOptions = toGeographyOptions(options.geoLevel);
   const preferredGeography =
-    geographyOptions.find((option) => option.value === "municipality") ??
+    geographyOptions.find((option) => option.value === "region") ??
     geographyOptions[0];
   const years = getSortedYearOptions(toFilterDefinitions(options.year));
   const firstYear = years[0]?.value ?? "";
@@ -341,7 +354,7 @@ function createInitialFilterState(options: DuckDbFilterOptions): FilterState {
     geoLevel: preferredGeography?.value ?? "",
     measure: preferredMeasure?.value ?? "",
     metric: preferredMetric?.value ?? "",
-    yearStart: firstYear,
+    yearStart: lastYear,
     yearEnd: lastYear,
     ageGroups: defaultAgeGroup ? [defaultAgeGroup.value] : [],
     sex: options.sex[0]?.value ?? "",
@@ -1026,6 +1039,14 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
     filters && filterOptions
       ? getSelectedFilterLabel(filters.disease, toFilterDefinitions(filterOptions.disease))
       : "selected disease";
+  const selectedMetricLabel =
+    filters && filterOptions
+      ? getSelectedFilterLabel(filters.metric, toFilterDefinitions(filterOptions.metric))
+      : preferredMetricLabel;
+  const selectedMeasureLabel =
+    filters && filterOptions
+      ? getSelectedFilterLabel(filters.measure, toFilterDefinitions(filterOptions.measure))
+      : preferredMeasureLabel;
   const diseaseOptions = filterOptions ? toFilterDefinitions(filterOptions.disease) : [];
   const geographyOptions = filterOptions ? toGeographyOptions(filterOptions.geoLevel) : [];
   const measureOptions = filterOptions ? toFilterDefinitions(filterOptions.measure) : [];
@@ -1058,6 +1079,9 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
     regionMaxValue,
   );
   const regionMapEmptyLabel = getRegionMapEmptyLabel(filters, regionMetricState);
+  const isUsingFallbackRegionBoundaries =
+    regionBoundaryState.status === "ready" &&
+    regionBoundaryState.boundaries.source === "local-region-schematic-fallback";
 
   return (
     <main className="dashboard-layout">
@@ -1206,7 +1230,7 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
             <div>
               <h2>Map preview</h2>
               <p className="muted">
-                Choropleth view for kommune or region colored by rate per 100,000 inhabitants.
+                Choropleth view for the selected region snapshot.
               </p>
               <p className="muted">
                 Showing {release.tag} for {selectionSummary}
@@ -1231,7 +1255,13 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
               </p>
             </div>
             <span className="pill">
-              {isRegionView ? "KOL-first region slice" : "Live DuckDB"}
+              {isUsingFallbackRegionBoundaries
+                ? "Schematic fallback"
+                : isKOLRegionPrototype && regionMetricState.status === "ready"
+                ? "Live region map"
+                : isRegionView
+                  ? "KOL-first region slice"
+                  : "Live DuckDB"}
             </span>
           </div>
 
@@ -1275,7 +1305,22 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
             </div>
 
             <div className="map-canvas__focus map-preview">
-              <p className="map-canvas__metric">Antal personer pr. 100.000 borgere</p>
+              <p className="map-canvas__metric">{selectedMetricLabel}</p>
+              {isKOLRegionPrototype && regionMetricState.status === "ready" ? (
+                <div className="preview-state">
+                  <h3>{selectedMeasureLabel}</h3>
+                  <p className="muted">
+                    Region values are joined by exact region name and colored by the
+                    selected non-standardized rate.
+                  </p>
+                  {isUsingFallbackRegionBoundaries ? (
+                    <p className="muted">
+                      DAGI WFS is currently unavailable, so the map is using a temporary
+                      schematic region layer instead of official boundaries.
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
               {filters?.geoLevel === "region" &&
               filters.disease !== preferredDiseaseSlug ? (
                 <div className="preview-state">
@@ -1824,6 +1869,10 @@ function YearRangeFilterSection({
     maxIndex > 0 ? (selectedRange.startIndex / maxIndex) * 100 : 0;
   const rangeEndPercent =
     maxIndex > 0 ? (selectedRange.endIndex / maxIndex) * 100 : 0;
+  const sliderClassName =
+    selectedRange.startIndex === selectedRange.endIndex
+      ? "range-control__slider range-control__slider--locked"
+      : "range-control__slider";
 
   return (
     <section className="filter-group">
@@ -1833,7 +1882,7 @@ function YearRangeFilterSection({
       </div>
       <div className="range-control">
         <div
-          className="range-control__slider"
+          className={sliderClassName}
           style={
             {
               "--range-start": `${rangeStartPercent}%`,
@@ -1845,6 +1894,7 @@ function YearRangeFilterSection({
           <label>
             <span className="sr-only">Year range start</span>
             <input
+              className="range-control__input range-control__input--start"
               type="range"
               min={0}
               max={maxIndex}
@@ -1868,6 +1918,7 @@ function YearRangeFilterSection({
           <label>
             <span className="sr-only">Year range end</span>
             <input
+              className="range-control__input range-control__input--end"
               type="range"
               min={0}
               max={maxIndex}

@@ -27,9 +27,9 @@
 
 ## Current implementation state
 
-- The app shell includes a temporary region-first choropleth prototype path backed by live DAGI WFS geometry and DuckDB-filtered KOL rate rows.
-- That prototype must not yet be described as the first completed real region map.
-- The region map remains blocked until the first-map measure contract is explicit.
+- The app shell includes a region-first choropleth path backed by live DAGI WFS geometry and DuckDB-filtered KOL rate rows.
+- The first-map measure contract is explicit: `Antal personer med sygdom` displayed as `Antal personer pr. 100.000 borgere`.
+- The default map slice uses region, latest year, `Alle aldre`, and `Begge`.
 - Temporary exact-name region join diagnostics are visible in the product.
 - Source and methodology wording are visible in the product.
 - Municipality mode is still a validation and preview path, not a completed choropleth implementation.
