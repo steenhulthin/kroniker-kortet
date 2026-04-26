@@ -64,5 +64,7 @@
 ## Near-term UI intent
 
 - Keep the first implementation simple and map-first
+- Keep all user-facing UI copy in Danish, including labels, empty states, diagnostics, and helper text
+- Keep internal code names, technical identifiers, and implementation-only text in English where that is already the project convention
 - Use supporting cards for release info and implementation status
 - Add charts only as secondary elements after the map and filters are working

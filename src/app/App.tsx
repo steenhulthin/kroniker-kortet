@@ -142,38 +142,38 @@ const initialState: ReleaseState = { status: "loading" };
 const sidebarFilters: SidebarFilter[] = [
   {
     key: "disease",
-    title: "Disease",
+    title: "Sygdom",
     source: "duckdb",
   },
   {
     key: "geoLevel",
-    title: "Geographic detail",
-    hint: "Switch the map between municipality and region boundaries.",
+    title: "Geografisk niveau",
+    hint: "Skift kortet mellem kommune- og regionsgrænser.",
     source: "local",
   },
   {
     key: "measure",
-    title: "Measure",
+    title: "Mål",
     source: "duckdb",
   },
   {
     key: "metric",
-    title: "Metric",
+    title: "Enhed",
     source: "duckdb",
   },
   {
     key: "year",
-    title: "Year",
+    title: "År",
     source: "duckdb",
   },
   {
     key: "ageGroup",
-    title: "Age group",
+    title: "Aldersgruppe",
     source: "duckdb",
   },
   {
     key: "sex",
-    title: "Sex",
+    title: "Køn",
     source: "duckdb",
   },
 ];
@@ -430,7 +430,7 @@ function buildSelectionSummary(
     .join(", ");
   const sex = getSelectedFilterLabel(filters.sex, toFilterDefinitions(filterOptions.sex));
 
-  return `${disease}, ${geography}, ${measure}, ${metric}, ${formatYearRange(filters)}, ${ageGroups || "no age groups"}, ${sex}`;
+  return `${disease}, ${geography}, ${measure}, ${metric}, ${formatYearRange(filters)}, ${ageGroups || "ingen aldersgrupper"}, ${sex}`;
 }
 
 function getSortedYearOptions(options: readonly FilterDefinition[]): FilterDefinition[] {
@@ -503,7 +503,7 @@ function formatMetricValue(value: number): string {
 }
 
 function isAmbiguousRegionMeasureMessage(message: string): boolean {
-  return message.includes("Region map metric is ambiguous");
+  return message.includes("Regionskortets mål er tvetydigt");
 }
 
 function getRegionLegendLabels(
@@ -514,8 +514,8 @@ function getRegionLegendLabels(
 ) {
   if (filters?.geoLevel !== "region") {
     return {
-      start: "Loading",
-      end: "Ready",
+      start: "Indlæser",
+      end: "Klar",
     };
   }
 
@@ -528,8 +528,8 @@ function getRegionLegendLabels(
 
   if (filters.disease !== preferredDiseaseSlug) {
     return {
-      start: "KOL only",
-      end: "Preview",
+      start: "Kun KOL",
+      end: "Forhåndsvisning",
     };
   }
 
@@ -538,21 +538,21 @@ function getRegionLegendLabels(
     isAmbiguousRegionMeasureMessage(regionMetricState.message)
   ) {
     return {
-      start: "Join ready",
-      end: "Measure pending",
+      start: "Kobling klar",
+      end: "Mål afventer",
     };
   }
 
   if (regionMetricState.status === "blocked") {
     return {
-      start: "Table range",
-      end: "Map paused",
+      start: "Tabeludsnit",
+      end: "Kort sat på pause",
     };
   }
 
   return {
-    start: "Loading",
-    end: "Ready",
+    start: "Indlæser",
+    end: "Klar",
   };
 }
 
@@ -572,15 +572,15 @@ function getRegionMapEmptyLabel(
     regionMetricState.status === "error" &&
     isAmbiguousRegionMeasureMessage(regionMetricState.message)
   ) {
-    return "awaiting explicit measure contract";
+    return "afventer eksplicit målvalg";
   }
 
   if (regionMetricState.status === "blocked") {
-    return "single year and age group required";
+    return "kræver ét år og én aldersgruppe";
   }
 
   if (regionMetricState.status === "loading") {
-    return "indlaeser regionrater";
+    return "indlæser regionrater";
   }
 
   if (regionMetricState.status === "empty") {
@@ -604,14 +604,14 @@ function getMunicipalityLegendLabels(
 
   if (municipalityMetricState.status === "blocked") {
     return {
-      start: "Table range",
-      end: "Map paused",
+      start: "Tabeludsnit",
+      end: "Kort sat på pause",
     };
   }
 
   return {
-    start: "Loading",
-    end: "Ready",
+    start: "Indlæser",
+    end: "Klar",
   };
 }
 
@@ -619,11 +619,11 @@ function getMunicipalityMapEmptyLabel(
   municipalityMetricState: MunicipalityMetricLoadState,
 ): string {
   if (municipalityMetricState.status === "blocked") {
-    return "single year and age group required";
+    return "kræver ét år og én aldersgruppe";
   }
 
   if (municipalityMetricState.status === "loading") {
-    return "indlaeser kommunerater";
+    return "indlæser kommunerater";
   }
 
   if (municipalityMetricState.status === "empty") {
@@ -634,7 +634,7 @@ function getMunicipalityMapEmptyLabel(
 }
 
 function formatNameList(names: readonly string[]): string {
-  return names.length === 0 ? "none" : names.join(", ");
+  return names.length === 0 ? "ingen" : names.join(", ");
 }
 
 export function App() {
@@ -660,7 +660,7 @@ export function App() {
         }
 
         const message =
-          error instanceof Error ? error.message : "Unknown data loading error";
+          error instanceof Error ? error.message : "Ukendt fejl ved indlæsning af data";
 
         startTransition(() => {
           setState({ status: "error", message });
@@ -689,7 +689,7 @@ export function App() {
             href="https://github.com/steenhulthin/kroniker-kortet"
             target="_blank"
             rel="noreferrer"
-            aria-label="Open kroniker-kortet on GitHub"
+            aria-label="Åbn kroniker-kortet på GitHub"
           >
             <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
               <path
@@ -700,7 +700,7 @@ export function App() {
             <span>GitHub</span>
           </a>
           <p className="github-repo-box__credit">
-            A #DagensDashboard by{" "}
+            Et #DagensDashboard af{" "}
             <a href="https://steen.hulthin.dk/" target="_blank" rel="noreferrer">
               Steenhulthin
             </a>
@@ -719,11 +719,10 @@ function LoadingState() {
   return (
     <section className="panel panel--wide">
       <div className="panel__header">
-        <h2>Loading dashboard data</h2>
+        <h2>Indlæser dashboarddata</h2>
       </div>
       <p className="muted">
-        Resolving the latest RUKS release and preparing the map-first dashboard
-        scaffold.
+        Finder den nyeste RUKS-udgivelse og forbereder dashboardets kortvisning.
       </p>
     </section>
   );
@@ -733,10 +732,10 @@ function ErrorState({ message }: { message: string }) {
   return (
     <section className="panel panel--wide">
       <div className="panel__header">
-        <h2>Release source unavailable</h2>
+        <h2>Udgivelseskilde er ikke tilgængelig</h2>
       </div>
       <p className="muted">
-        The dashboard shell is ready, but the live release metadata did not load.
+        Dashboardet er klar, men metadata for den aktuelle udgivelse kunne ikke indlæses.
       </p>
       <pre className="error-box">{message}</pre>
     </section>
@@ -789,7 +788,7 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
         }
 
         const message =
-          error instanceof Error ? error.message : "Unknown spatial loading error";
+          error instanceof Error ? error.message : "Ukendt fejl ved indlæsning af geografi";
 
         setRegionBoundaryState({ status: "error", message });
       }
@@ -833,7 +832,7 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
 
         if (dataDrivenFilterKeys.some((key) => options[key].length === 0)) {
           const message =
-            "DuckDB returned no distinct values for one or more filters.";
+            "DuckDB returnerede ingen værdier for et eller flere filtre.";
 
           setFilterLoadState({ status: "empty", options, message });
           setPreviewState({ status: "empty" });
@@ -848,7 +847,7 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
         }
 
         const message =
-          error instanceof Error ? error.message : "Unknown DuckDB error";
+          error instanceof Error ? error.message : "Ukendt DuckDB-fejl";
 
         setFilterLoadState({ status: "error", message });
         setPreviewState({ status: "error", message });
@@ -907,7 +906,7 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
         }
 
         const message =
-          error instanceof Error ? error.message : "Unknown DuckDB error";
+          error instanceof Error ? error.message : "Ukendt DuckDB-fejl";
 
         setPreviewState({ status: "error", message });
       }
@@ -934,7 +933,7 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
       setMunicipalityMetricState({
         status: "blocked",
         message:
-          "The table can show year ranges and multiple age groups, but the choropleth needs one year and one age group until an explicit aggregation rule is chosen.",
+          "Tabellen kan vise årsspænd og flere aldersgrupper, men kortet kræver ét år og én aldersgruppe, indtil der er valgt en eksplicit aggregeringsregel.",
       });
       return;
     }
@@ -961,7 +960,7 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
         }
 
         const message =
-          error instanceof Error ? error.message : "Unknown municipality metric error";
+          error instanceof Error ? error.message : "Ukendt fejl i kommuneopgørelsen";
 
         setMunicipalityMetricState({ status: "error", message });
       }
@@ -989,7 +988,7 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
       setRegionMetricState({
         status: "blocked",
         message:
-          "Region choropleth is intentionally KOL-first. Non-KOL diseases stay in preview and diagnostics mode until the KOL region path is proven end to end.",
+          "Regionskortet er foreløbigt KOL-først. Andre sygdomme vises kun i forhåndsvisning og diagnostik, indtil regionssporet for KOL er valideret fra ende til ende.",
       });
       setRegionRateAuditState({ status: "idle" });
       return;
@@ -999,7 +998,7 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
       setRegionMetricState({
         status: "blocked",
         message:
-          "The table can show year ranges and multiple age groups, but the choropleth needs one year and one age group until an explicit aggregation rule is chosen.",
+          "Tabellen kan vise årsspænd og flere aldersgrupper, men kortet kræver ét år og én aldersgruppe, indtil der er valgt en eksplicit aggregeringsregel.",
       });
       setRegionRateAuditState({ status: "idle" });
       return;
@@ -1044,7 +1043,7 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
         }
 
         const message =
-          error instanceof Error ? error.message : "Unknown regional metric error";
+          error instanceof Error ? error.message : "Ukendt fejl i regionsopgørelsen";
 
         try {
           const audit = await auditRuksRegionRateCandidates(release, {
@@ -1065,7 +1064,7 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
               message:
                 auditError instanceof Error
                   ? auditError.message
-                  : "Unknown region-rate audit error",
+                  : "Ukendt fejl i regionsaudit",
             });
           }
         }
@@ -1126,7 +1125,7 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
         }
 
         const message =
-          error instanceof Error ? error.message : "Unknown region join diagnostic error";
+          error instanceof Error ? error.message : "Ukendt fejl i regionsdiagnostikken";
 
         setRegionJoinDiagnosticsState({ status: "error", message });
       }
@@ -1147,11 +1146,11 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
   const selectionSummary =
     filters && filterOptions
       ? buildSelectionSummary(filters, filterOptions)
-      : "Loading filter options from DuckDB...";
+      : "Indlæser filtermuligheder fra DuckDB...";
   const selectedDiseaseLabel =
     filters && filterOptions
       ? getSelectedFilterLabel(filters.disease, toFilterDefinitions(filterOptions.disease))
-      : "selected disease";
+      : "valgt sygdom";
   const selectedMeasureLabel =
     filters && filterOptions
       ? getSelectedFilterLabel(filters.measure, toFilterDefinitions(filterOptions.measure))
@@ -1225,12 +1224,12 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
     <main className="dashboard-layout">
       <aside className="sidebar panel">
         <div className="panel__header">
-          <h2>Filters</h2>
-          <span className="pill">Sidebar</span>
+          <h2>Filtre</h2>
+          <span className="pill">Sidepanel</span>
         </div>
 
         {filterLoadState.status === "loading" ? (
-          <p className="filter-stack__status">Loading filter options from DuckDB…</p>
+          <p className="filter-stack__status">Indlæser filtermuligheder fra DuckDB…</p>
         ) : null}
         {filterLoadState.status === "empty" ? (
           <p className="filter-stack__status">{filterLoadState.message}</p>
@@ -1241,14 +1240,14 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
         {isRegionView ? (
           <p className="filter-stack__status">
             {isKOLRegionPrototype
-              ? "Region mode is intentionally KOL-first. KOL is the only disease that can activate the live region slice while the path is being validated."
-              : `${selectedDiseaseLabel} remains in preview and join-diagnostics mode in region view until the KOL region path is proven end to end.`}
+              ? "Regionstilstanden er foreløbigt KOL-først. KOL er den eneste sygdom, der kan aktivere det levende regionsudsnit, mens sporet valideres."
+              : `${selectedDiseaseLabel} vises kun i forhåndsvisning og koblingsdiagnostik i regionsvisningen, indtil regionssporet for KOL er valideret fra ende til ende.`}
           </p>
         ) : null}
 
         <div className="filter-stack">
           <DropdownFilterSection
-            title="Disease"
+            title="Sygdom"
             options={diseaseOptions}
             selectedValue={filters?.disease ?? ""}
             disabled={filters === null || diseaseOptions.length === 0}
@@ -1258,8 +1257,8 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
           />
 
           <DropdownFilterSection
-            title="Geographic detail"
-            hint="Switch the map between municipality and region boundaries."
+            title="Geografisk niveau"
+            hint="Skift kortet mellem kommune- og regionsgrænser."
             options={geographyOptions}
             selectedValue={filters?.geoLevel ?? ""}
             disabled={filters === null || geographyOptions.length === 0}
@@ -1269,7 +1268,7 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
           />
 
           <DropdownFilterSection
-            title="Metric"
+            title="Enhed"
             options={metricOptions}
             selectedValue={filters?.metric ?? ""}
             disabled={filters === null || metricOptions.length === 0}
@@ -1279,7 +1278,7 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
           />
 
           <DropdownFilterSection
-            title="Measure"
+            title="Mål"
             options={measureOptions}
             selectedValue={filters?.measure ?? ""}
             disabled={filters === null || measureOptions.length === 0}
@@ -1306,7 +1305,7 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
           />
 
           <CheckboxFilterSection
-            title="Age group"
+            title="Aldersgruppe"
             options={ageGroupOptions}
             selectedValues={filters?.ageGroups ?? []}
             disabled={filters === null || ageGroupOptions.length === 0}
@@ -1366,40 +1365,41 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
         <article className="panel map-panel">
           <div className="panel__header">
             <div>
-              <h2>Map preview</h2>
+              <h2>Kortvisning</h2>
               <p className="muted">
-                Choropleth view for the selected geography snapshot.
+                Koropletkort for det valgte geografiske udsnit.
               </p>
               <p className="muted">
-                Showing {release.tag} for {selectionSummary}
+                Viser {release.tag} for {selectionSummary}
               </p>
               {isRegionView ? (
                 <p className="muted">
-                  Region mode is explicitly KOL-first. Non-KOL diseases stay in
-                  preview-only validation mode so they do not read as production-ready.
+                  Regionstilstanden er eksplicit KOL-først. Andre sygdomme forbliver
+                  i valideringstilstand, så de ikke fremstår produktionsklare.
                 </p>
               ) : null}
               {isKOLRegionPrototype &&
               regionMetricState.status === "error" &&
               isAmbiguousRegionMeasureMessage(regionMetricState.message) ? (
                 <p className="muted">
-                  The exact-name region join is wired, but the choropleth remains blocked
-                  until a single region measure contract is chosen explicitly.
+                  Den eksakte regionskobling er klar, men kortet er blokeret,
+                  indtil der eksplicit er valgt ét regionsmål.
                 </p>
               ) : null}
               <p className="muted">
-                Temporary project assumption: duplicate Bornholm rows are treated as a
-                Christiansoe-related artifact and collapsed locally until clarified upstream.
+                Midlertidig projektantagelse: dublerede Bornholm-rækker behandles
+                som en Christiansø-relateret artefakt og foldes sammen lokalt,
+                indtil det er afklaret opstrøms.
               </p>
             </div>
             <span className="pill">
               {isKOLRegionPrototype && regionMetricState.status === "ready"
-                ? "Live region map"
+                ? "Levende regionskort"
                 : !isRegionView && municipalityMetricState.status === "ready"
-                  ? "Live municipality map"
+                  ? "Levende kommunekort"
                 : isRegionView
-                  ? "Static DAGI regions"
-                  : "Static DAGI municipalities"}
+                  ? "Statiske DAGI-regioner"
+                  : "Statiske DAGI-kommuner"}
             </span>
           </div>
 
@@ -1427,26 +1427,26 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
               <div className="preview-state">
                 <h3>{selectedMeasureLabel}</h3>
                 <p className="muted">
-                  Region values are joined by exact region name and colored by the
-                  selected non-standardized rate.
+                  Regionsværdier kobles på eksakt regionsnavn og farves efter
+                  den valgte ikke-standardiserede rate.
                 </p>
               </div>
             ) : null}
             {filters?.geoLevel === "region" &&
             filters.disease !== preferredDiseaseSlug ? (
               <div className="preview-state">
-                <h3>KOL-first region prototype</h3>
+                <h3>KOL-først regionsprototype</h3>
                 <p className="muted">
-                  The first real choropleth is being proven on KOL only. Other diseases
-                  remain in preview-only mode until the KOL region path passes QA and a
-                  measure is chosen explicitly.
+                  Det første rigtige kort valideres kun på KOL. Andre sygdomme
+                  forbliver i forhåndsvisning, indtil regionssporet for KOL er
+                  kvalitetssikret, og et mål er valgt eksplicit.
                 </p>
               </div>
             ) : null}
 
             {isKOLRegionPrototype && regionMetricState.status === "blocked" ? (
               <div className="preview-state">
-                <h3>Map slice paused</h3>
+                <h3>Kortudsnit sat på pause</h3>
                 <p className="muted">{regionMetricState.message}</p>
               </div>
             ) : null}
@@ -1454,10 +1454,10 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
             {isKOLRegionPrototype &&
             regionBoundaryState.status === "loading" ? (
               <div className="preview-state">
-                <h3>Loading region boundaries</h3>
+                <h3>Indlæser regionsgrænser</h3>
                 <p className="muted">
-                  Loading the static DAGI region boundary artifact for the first real
-                  choropleth prototype.
+                  Indlæser den statiske DAGI-regionsfil til den første rigtige
+                  kortprototype.
                 </p>
               </div>
             ) : null}
@@ -1465,7 +1465,7 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
             {isKOLRegionPrototype &&
             regionBoundaryState.status === "error" ? (
               <div className="preview-state preview-state--error">
-                <h3>Region boundary load failed</h3>
+                <h3>Regionsgrænser kunne ikke indlæses</h3>
                 <pre className="error-box">{regionBoundaryState.message}</pre>
               </div>
             ) : null}
@@ -1473,9 +1473,9 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
             {isKOLRegionPrototype &&
             regionMetricState.status === "loading" ? (
               <div className="preview-state">
-                <h3>Loading region rates</h3>
+                <h3>Indlæser regionsrater</h3>
                 <p className="muted">
-                  Querying the non-standardized rate rows for the selected KOL view.
+                  Henter ikke-standardiserede rater for den valgte KOL-visning.
                 </p>
               </div>
             ) : null}
@@ -1483,9 +1483,9 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
             {isKOLRegionPrototype &&
             regionMetricState.status === "empty" ? (
               <div className="preview-state">
-                <h3>No region rates found</h3>
+                <h3>Ingen regionsrater fundet</h3>
                 <p className="muted">
-                  DuckDB returned no regional rate rows for the selected filters.
+                  DuckDB returnerede ingen regionsrater for de valgte filtre.
                 </p>
               </div>
             ) : null}
@@ -1495,14 +1495,13 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
               <div className="preview-state preview-state--error">
                 <h3>
                   {isAmbiguousRegionMeasureMessage(regionMetricState.message)
-                    ? "Region measure contract still unresolved"
-                    : "Region rate query failed"}
+                    ? "Regionsmål er endnu ikke afklaret"
+                    : "Forespørgsel efter regionsrate fejlede"}
                 </h3>
                 {isAmbiguousRegionMeasureMessage(regionMetricState.message) ? (
                   <p className="muted">
-                    The exact-name region join is available, but the map stays
-                    intentionally blocked until one region measure is selected on
-                    purpose.
+                    Den eksakte regionskobling er klar, men kortet forbliver
+                    bevidst blokeret, indtil ét regionsmål vælges eksplicit.
                   </p>
                 ) : null}
                 <pre className="error-box">{regionMetricState.message}</pre>
@@ -1514,11 +1513,11 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
                 <h3>
                   {municipalityMetricState.status === "ready"
                     ? selectedMeasureLabel
-                    : "Municipality map"}
+                    : "Kommunekort"}
                 </h3>
                 <p className="muted">
-                  Municipality values are joined by exact municipality name and colored
-                  by the selected non-standardized rate.
+                  Kommuneværdier kobles på eksakt kommunenavn og farves efter
+                  den valgte ikke-standardiserede rate.
                 </p>
               </div>
             ) : null}
@@ -1526,7 +1525,7 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
             {filters?.geoLevel === "municipality" &&
             municipalityMetricState.status === "blocked" ? (
               <div className="preview-state">
-                <h3>Map slice paused</h3>
+                <h3>Kortudsnit sat på pause</h3>
                 <p className="muted">{municipalityMetricState.message}</p>
               </div>
             ) : null}
@@ -1534,10 +1533,9 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
             {filters?.geoLevel === "municipality" &&
             municipalityMetricState.status === "loading" ? (
               <div className="preview-state">
-                <h3>Loading municipality rates</h3>
+                <h3>Indlæser kommunerater</h3>
                 <p className="muted">
-                  Querying the non-standardized rate rows for the selected municipality
-                  view.
+                  Henter ikke-standardiserede rater for den valgte kommunevisning.
                 </p>
               </div>
             ) : null}
@@ -1545,9 +1543,9 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
             {filters?.geoLevel === "municipality" &&
             municipalityMetricState.status === "empty" ? (
               <div className="preview-state">
-                <h3>No municipality rates found</h3>
+                <h3>Ingen kommunerater fundet</h3>
                 <p className="muted">
-                  DuckDB returned no municipality rate rows for the selected filters.
+                  DuckDB returnerede ingen kommunerater for de valgte filtre.
                 </p>
               </div>
             ) : null}
@@ -1555,7 +1553,7 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
             {filters?.geoLevel === "municipality" &&
             municipalityMetricState.status === "error" ? (
               <div className="preview-state preview-state--error">
-                <h3>Municipality rate query failed</h3>
+                <h3>Forespørgsel efter kommunerate fejlede</h3>
                 <pre className="error-box">{municipalityMetricState.message}</pre>
               </div>
             ) : null}
@@ -1571,35 +1569,35 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
         <section className="support-grid">
           <article className="panel">
             <div className="panel__header">
-              <h2>Current dashboard spec</h2>
+              <h2>Aktuel dashboardspecifikation</h2>
             </div>
             <div className="checklist">
-              <p>1. Header with title.</p>
-              <p>2. Sidebar for disease, geography detail, year, age group, and sex.</p>
-              <p>3. Main map colored by `Antal personer pr. 100.000 borgere`.</p>
-              <p>4. Start by proving the KOL path before broadening to other diseases.</p>
+              <p>1. Topfelt med titel.</p>
+              <p>2. Sidepanel med filtre for sygdom, geografisk niveau, år, aldersgruppe og køn.</p>
+              <p>3. Hovedkort farvet efter `Antal personer pr. 100.000 borgere`.</p>
+              <p>4. Start med at validere KOL-sporet, før det udvides til andre sygdomme.</p>
             </div>
           </article>
 
           <article className="panel">
             <div className="panel__header">
-              <h2>KOL validation focus</h2>
+              <h2>KOL-valideringsfokus</h2>
             </div>
             <div className="checklist">
-              <p>1. KOL is the default disease in this first validation slice.</p>
-              <p>2. Use the preview table to sanity-check geography, sex, age, and year selections.</p>
-              <p>3. Treat additive count checks separately from rates and standardized values.</p>
+              <p>1. KOL er standardsygdommen i det første valideringsudsnit.</p>
+              <p>2. Brug datatabellen til at kontrollere geografi, køn, alder og år.</p>
+              <p>3. Kontroller additive antal separat fra rater og standardiserede værdier.</p>
             </div>
           </article>
 
           <article className="panel">
             <div className="panel__header">
-              <h2>Region rate audit</h2>
+              <h2>Audit af regionsrater</h2>
             </div>
             {isKOLRegionPrototype && regionRateAuditState.status === "loading" ? (
               <p className="muted">
-                Auditing which non-standardized rate measures survive the active KOL
-                region filters.
+                Undersøger hvilke ikke-standardiserede ratemål der findes for de
+                aktive KOL-regionsfiltre.
               </p>
             ) : null}
             {isKOLRegionPrototype && regionRateAuditState.status === "error" ? (
@@ -1608,9 +1606,9 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
             {isKOLRegionPrototype && regionRateAuditState.status === "ready" ? (
               <div className="checklist">
                 <p>
-                  1. Matching measures:{" "}
+                  1. Matchende mål:{" "}
                   {regionRateAuditState.audit.measures.length === 0
-                    ? "none"
+                    ? "ingen"
                     : regionRateAuditState.audit.measures
                         .map(
                           (measure) =>
@@ -1619,38 +1617,38 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
                         .join(", ")}
                 </p>
                 <p>
-                  2. Candidate rows per measure:{" "}
+                  2. Kandidatrækker pr. mål:{" "}
                   {regionRateAuditState.audit.measures.length === 0
-                    ? "none"
+                    ? "ingen"
                     : regionRateAuditState.audit.measures
                         .map(
                           (measure) =>
-                            `${measure.measureCode}: ${measure.rowCount} rows / ${measure.distinctRegionCount} regions`,
+                            `${measure.measureCode}: ${measure.rowCount} rækker / ${measure.distinctRegionCount} regioner`,
                         )
                         .join(", ")}
                 </p>
                 <p>
-                  3. Duplicate candidate region names:{" "}
+                  3. Dublerede kandidatregionsnavne:{" "}
                   {formatNameList(regionRateAuditState.audit.duplicateRegionNames)}
                 </p>
               </div>
             ) : null}
             {!isKOLRegionPrototype ? (
               <p className="muted">
-                The rate audit is shown only for the KOL region prototype because that
-                is the current acceptance slice.
+                Rateaudit vises kun for KOL-regionsprototypen, fordi det er det
+                aktuelle acceptudsnit.
               </p>
             ) : null}
           </article>
 
           <article className="panel">
             <div className="panel__header">
-              <h2>Region join diagnostics</h2>
+              <h2>Regionskoblingsdiagnostik</h2>
             </div>
             {isRegionView && regionJoinDiagnosticsState.status === "loading" ? (
               <p className="muted">
-                Checking the exact-name join between `region_name` and DAGI region names
-                for the current region selection.
+                Kontrollerer eksakt kobling mellem `region_name` og DAGI-regionsnavne
+                for det aktuelle regionsvalg.
               </p>
             ) : null}
             {isRegionView && regionJoinDiagnosticsState.status === "error" ? (
@@ -1660,34 +1658,34 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
               <>
                 <div className="preview-summary">
                   <div className="preview-summary__card">
-                    <span className="preview-summary__label">Join mode</span>
-                    <strong>Exact `region_name = DAGI.Navn`</strong>
+                    <span className="preview-summary__label">Kobling</span>
+                    <strong>Eksakt `region_name = DAGI.Navn`</strong>
                   </div>
                   <div className="preview-summary__card">
-                    <span className="preview-summary__label">Matched</span>
+                    <span className="preview-summary__label">Matchet</span>
                     <strong>
                       {regionJoinDiagnosticsState.diagnostics.matchedRegionNames.length}/
                       {regionJoinDiagnosticsState.diagnostics.totalRuksRegions}
                     </strong>
                   </div>
                   <div className="preview-summary__card">
-                    <span className="preview-summary__label">DAGI regions</span>
+                    <span className="preview-summary__label">DAGI-regioner</span>
                     <strong>{regionJoinDiagnosticsState.diagnostics.totalBoundaryRegions}</strong>
                   </div>
                 </div>
                 <div className="diagnostic-list">
                   <p>
-                    Matched regions:{" "}
+                    Matchede regioner:{" "}
                     {formatNameList(regionJoinDiagnosticsState.diagnostics.matchedRegionNames)}
                   </p>
                   <p>
-                    Unmatched RUKS region names:{" "}
+                    Ikke-matchede RUKS-regionsnavne:{" "}
                     {formatNameList(
                       regionJoinDiagnosticsState.diagnostics.unmatchedRuksRegionNames,
                     )}
                   </p>
                   <p>
-                    Unmatched DAGI regions:{" "}
+                    Ikke-matchede DAGI-regioner:{" "}
                     {formatNameList(
                       regionJoinDiagnosticsState.diagnostics.unmatchedBoundaryRegionNames,
                     )}
@@ -1697,30 +1695,30 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
             ) : null}
             {isRegionView && regionJoinDiagnosticsState.status === "idle" ? (
               <p className="muted">
-                Region join diagnostics are waiting for the DAGI region boundaries to
-                load.
+                Regionskoblingsdiagnostikken afventer, at DAGI-regionsgrænserne
+                indlæses.
               </p>
             ) : null}
             {!isRegionView ? (
               <p className="muted">
-                Switch geography detail to `Region` to inspect the exact-name join
-                diagnostics for the current disease, year, age group, and sex selection.
+                Skift geografisk niveau til `Region` for at se den eksakte
+                koblingsdiagnostik for den aktuelle sygdom, år, aldersgruppe og køn.
               </p>
             ) : null}
           </article>
 
           <article className="panel panel--wide">
             <div className="panel__header">
-              <h2>Source and methodology</h2>
+              <h2>Kilde og metode</h2>
             </div>
             <div className="source-stack">
               <p className="source-note">{directRuksSourceNote}</p>
               <p className="source-note source-note--derived">{derivedRuksSourceNote}</p>
             </div>
             <div className="checklist">
-              <p>1. Region diagnostics use an explicit exact-name join for `region_name = DAGI.Navn`.</p>
-              <p>2. The current Bornholm duplicate handling remains local, visible, and temporary until the upstream issue is clarified.</p>
-              <p>3. The region choropleth stays blocked until one measure contract is selected deliberately.</p>
+              <p>1. Regionsdiagnostikken bruger en eksplicit eksakt kobling for `region_name = DAGI.Navn`.</p>
+              <p>2. Den aktuelle håndtering af dublerede Bornholm-rækker er lokal, synlig og midlertidig, indtil problemet er afklaret opstrøms.</p>
+              <p>3. Regionskortet forbliver blokeret, indtil ét mål vælges bevidst.</p>
             </div>
             <div className="resource-links">
               {methodologyLinks.map((link) => (
@@ -1739,40 +1737,40 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
 
           <article className="panel panel--wide">
             <div className="panel__header">
-              <h2>Implementation track</h2>
+              <h2>Implementeringsspor</h2>
             </div>
             <div className="checklist">
-              <p>1. Read the rate metric from the remote Parquet dataset.</p>
-              <p>2. Build filter state for disease, geography detail, year, age group, and sex.</p>
-              <p>3. Join the filtered values to municipality or region polygons.</p>
+              <p>1. Læs rateværdierne fra det eksterne Parquet-datasæt.</p>
+              <p>2. Byg filtertilstand for sygdom, geografisk niveau, år, aldersgruppe og køn.</p>
+              <p>3. Kobl de filtrerede værdier til kommune- eller regionspolygoner.</p>
             </div>
           </article>
 
           <details className="panel panel--wide about-dashboard">
-            <summary>About the dashboard</summary>
+            <summary>Om dashboardet</summary>
             <div className="about-dashboard__content">
               <dl className="facts">
                 <div>
-                  <dt>Release source</dt>
+                  <dt>Udgivelseskilde</dt>
                   <dd>
                     <code>{DEFAULT_LATEST_RELEASE_URL}</code>
                   </dd>
                 </div>
                 <div>
-                  <dt>Release tag</dt>
+                  <dt>Udgivelse</dt>
                   <dd>{release.tag}</dd>
                 </div>
                 <div>
-                  <dt>Published</dt>
+                  <dt>Publiceret</dt>
                   <dd>{formatDateLabel(release.publishedAt)}</dd>
                 </div>
                 <div>
-                  <dt>Preferred data file</dt>
+                  <dt>Foretrukken datafil</dt>
                   <dd>{release.recommendedAsset.name}</dd>
                 </div>
                 <div>
-                  <dt>Boundary source</dt>
-                  <dd>Static DAGI FlatGeobuf</dd>
+                  <dt>Grænsekilde</dt>
+                  <dd>Statisk DAGI FlatGeobuf</dd>
                 </div>
               </dl>
             </div>
@@ -1796,36 +1794,36 @@ function PreviewTablePanel({
     <article className="panel data-panel">
       <div className="panel__header">
         <div>
-          <h2>Data preview</h2>
+          <h2>Datavisning</h2>
           <p className="muted">
-            Filtered DuckDB rows for validating the map slice separately from the map.
+            Filtrerede DuckDB-rækker til validering af kortudsnittet uden for kortet.
           </p>
         </div>
-        <span className="pill">Table</span>
+        <span className="pill">Tabel</span>
       </div>
 
       {previewState.status === "loading" ? (
         <div className="preview-state">
-          <h3>Querying DuckDB</h3>
+          <h3>Forespørger DuckDB</h3>
           <p className="muted">
-            Re-running the filtered query for the current disease, geography, year range,
-            age group, and sex selections.
+            Kører den filtrerede forespørgsel igen for den aktuelle sygdom,
+            geografi, årsperiode, aldersgruppe og køn.
           </p>
         </div>
       ) : null}
 
       {previewState.status === "empty" ? (
         <div className="preview-state">
-          <h3>No matching rows</h3>
+          <h3>Ingen matchende rækker</h3>
           <p className="muted">
-            DuckDB returned no rows for the current filter combination.
+            DuckDB returnerede ingen rækker for den aktuelle filterkombination.
           </p>
         </div>
       ) : null}
 
       {previewState.status === "error" ? (
         <div className="preview-state preview-state--error">
-          <h3>DuckDB query failed</h3>
+          <h3>DuckDB-forespørgsel fejlede</h3>
           <pre className="error-box">{previewState.message}</pre>
         </div>
       ) : null}
@@ -1834,11 +1832,11 @@ function PreviewTablePanel({
         <div className="preview-table-shell">
           <div className="preview-summary">
             <div className="preview-summary__card">
-              <span className="preview-summary__label">Rows shown</span>
+              <span className="preview-summary__label">Viste rækker</span>
               <strong>{previewState.rows.length}</strong>
             </div>
             <div className="preview-summary__card">
-              <span className="preview-summary__label">Geography</span>
+              <span className="preview-summary__label">Geografi</span>
               <strong>
                 {filters
                   ? getSelectedFilterLabel(filters.geoLevel, localGeographyOptions)
@@ -1846,7 +1844,7 @@ function PreviewTablePanel({
               </strong>
             </div>
             <div className="preview-summary__card">
-              <span className="preview-summary__label">Release</span>
+              <span className="preview-summary__label">Udgivelse</span>
               <strong>{releaseTag}</strong>
             </div>
           </div>
@@ -1855,14 +1853,14 @@ function PreviewTablePanel({
             <table className="preview-table">
               <thead>
                 <tr>
-                  <th>Metric</th>
-                  <th>Measure</th>
-                  <th>Geography</th>
-                  <th>Disease</th>
-                  <th>Year</th>
-                  <th>Age group</th>
-                  <th>Sex</th>
-                  <th>Value</th>
+                  <th>Enhed</th>
+                  <th>Mål</th>
+                  <th>Geografi</th>
+                  <th>Sygdom</th>
+                  <th>År</th>
+                  <th>Aldersgruppe</th>
+                  <th>Køn</th>
+                  <th>Værdi</th>
                 </tr>
               </thead>
               <tbody>
@@ -2203,7 +2201,7 @@ function SidebarFilterSection({
       <div className="filter-options">
         {options.length === 0 ? (
           <button type="button" className="filter-chip" disabled>
-            No options
+            Ingen muligheder
           </button>
         ) : (
           options.map((option) => (
@@ -2256,7 +2254,7 @@ function DropdownFilterSection({
           disabled={disabled}
           onChange={(event) => onSelect(event.target.value)}
         >
-          {options.length === 0 ? <option value="">No options</option> : null}
+          {options.length === 0 ? <option value="">Ingen muligheder</option> : null}
           {options.map((option) => (
             <option key={option.value} value={option.value}>
               {option.label}
@@ -2298,8 +2296,8 @@ function YearRangeFilterSection({
   return (
     <section className="filter-group">
       <div className="filter-group__header">
-        <h3>Year</h3>
-        <p className="muted">{yearStart && yearEnd ? `${yearStart} to ${yearEnd}` : "No years"}</p>
+        <h3>År</h3>
+        <p className="muted">{yearStart && yearEnd ? `${yearStart} til ${yearEnd}` : "Ingen år"}</p>
       </div>
       <div className="range-control">
         <div
@@ -2313,7 +2311,7 @@ function YearRangeFilterSection({
         >
           <div className="range-control__track" aria-hidden="true" />
           <label>
-            <span className="sr-only">Year range start</span>
+            <span className="sr-only">Startår</span>
             <input
               className="range-control__input range-control__input--start"
               type="range"
@@ -2322,7 +2320,7 @@ function YearRangeFilterSection({
               step={1}
               value={selectedRange.startIndex}
               disabled={disabled}
-              aria-label="Year range start"
+              aria-label="Startår"
               onChange={(event) => {
                 const nextStart = Math.min(
                   Number(event.target.value),
@@ -2337,7 +2335,7 @@ function YearRangeFilterSection({
             />
           </label>
           <label>
-            <span className="sr-only">Year range end</span>
+            <span className="sr-only">Slutår</span>
             <input
               className="range-control__input range-control__input--end"
               type="range"
@@ -2346,7 +2344,7 @@ function YearRangeFilterSection({
               step={1}
               value={selectedRange.endIndex}
               disabled={disabled}
-              aria-label="Year range end"
+              aria-label="Slutår"
               onChange={(event) => {
                 const nextEnd = Math.max(
                   Number(event.target.value),
@@ -2390,7 +2388,7 @@ function CheckboxFilterSection({
       </div>
       <div className="checkbox-list">
         {options.length === 0 ? (
-          <p className="muted">No options</p>
+          <p className="muted">Ingen muligheder</p>
         ) : (
           options.map((option) => (
             <label key={option.value} className="checkbox-option">

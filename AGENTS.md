@@ -12,6 +12,7 @@ Build a public-facing map/dashboard for RUKS chronic disease data with a strong 
 - Sidebar with filters for disease, geography detail, year, age group, and sex
 - Main area centered on a choropleth map
 - Primary map metric: `Antal personer pr. 100.000 borgere`
+- User-facing UI copy must be Danish. Keep internal code names, comments, logs, and technical identifiers in English when they already are.
 
 ## Current technical direction
 

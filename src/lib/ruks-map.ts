@@ -174,7 +174,7 @@ export async function queryRuksMunicipalityRateMapRows(
 
     if (rowsByMunicipality.has(municipalityName)) {
       throw new Error(
-        `Municipality map query returned multiple rate rows for ${municipalityName}.`,
+        `Kommunekortet fandt flere raterækker for ${municipalityName}.`,
       );
     }
 
@@ -209,7 +209,7 @@ export async function queryRuksRegionRateMapRows(
       .join(", ");
 
     throw new Error(
-      `Region map metric is ambiguous: multiple non-standardized rate measures match the current filters: ${measureSummary}. Define the measure contract before rendering the choropleth.`,
+      `Regionskortets mål er tvetydigt: flere ikke-standardiserede ratemål matcher de aktuelle filtre: ${measureSummary}. Vælg målkontrakten, før kortet vises.`,
     );
   }
 
@@ -218,7 +218,7 @@ export async function queryRuksRegionRateMapRows(
   for (const candidate of selectedCandidates) {
     if (rowsByRegion.has(candidate.regionName)) {
       throw new Error(
-        `Region map query returned multiple rate rows for ${candidate.regionName}.`,
+        `Regionskortet fandt flere raterækker for ${candidate.regionName}.`,
       );
     }
 
