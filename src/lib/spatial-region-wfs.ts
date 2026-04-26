@@ -170,16 +170,8 @@ export async function fetchTemporaryDagiRegionSvgBoundaries(
 export async function fetchTemporaryDagiRegionGeoJsonBoundaries(
   options: RegionBoundaryFetchOptions = {},
 ): Promise<RegionGeoJsonBoundaryCollection> {
-  try {
-    const collection = await fetchTemporaryDagiRegionBoundaries(options);
-    return toRegionGeoJsonBoundaryCollection(collection);
-  } catch (error) {
-    if (error instanceof DOMException && error.name === "AbortError") {
-      throw error;
-    }
-
-    return createFallbackRegionGeoJsonBoundaries();
-  }
+  const collection = await fetchTemporaryDagiRegionBoundaries(options);
+  return toRegionGeoJsonBoundaryCollection(collection);
 }
 
 function createFallbackRegionSvgBoundaries(): SvgRegionBoundaryCollection {
@@ -235,91 +227,6 @@ function createFallbackRegionSvgBoundaries(): SvgRegionBoundaryCollection {
     height: 700,
     viewBox: "0 0 1000 700",
     features,
-  };
-}
-
-function createFallbackRegionGeoJsonBoundaries(): RegionGeoJsonBoundaryCollection {
-  return {
-    type: "FeatureCollection",
-    source: REGION_BOUNDARY_FALLBACK_SOURCE,
-    crs: "EPSG:4326",
-    features: [
-      createFallbackRegionFeature("Region Nordjylland", "1081", "fallback-region-nordjylland", [
-        [
-          [8.1, 56.55],
-          [10.62, 56.58],
-          [10.45, 57.72],
-          [8.42, 57.55],
-          [8.1, 56.55],
-        ],
-      ]),
-      createFallbackRegionFeature("Region Midtjylland", "1082", "fallback-region-midtjylland", [
-        [
-          [7.62, 56.12],
-          [7.95, 55.82],
-          [10.52, 55.82],
-          [10.62, 56.58],
-          [8.1, 56.55],
-          [7.62, 56.12],
-        ],
-      ]),
-      createFallbackRegionFeature("Region Syddanmark", "1083", "fallback-region-syddanmark", [
-        [
-          [8.05, 54.72],
-          [10.92, 54.82],
-          [10.52, 55.82],
-          [7.95, 55.82],
-          [7.48, 55.18],
-          [8.05, 54.72],
-        ],
-      ]),
-      createFallbackRegionFeature("Region Sjælland", "1085", "fallback-region-sjaelland", [
-        [
-          [10.78, 54.86],
-          [12.34, 54.92],
-          [12.24, 55.76],
-          [11.14, 55.86],
-          [10.5, 55.3],
-          [10.78, 54.86],
-        ],
-      ]),
-      createFallbackRegionFeature("Region Hovedstaden", "1084", "fallback-region-hovedstaden", [
-        [
-          [11.72, 55.42],
-          [12.78, 55.42],
-          [12.82, 56.16],
-          [11.78, 56.12],
-          [11.72, 55.42],
-        ],
-        [
-          [14.62, 54.96],
-          [15.16, 55.0],
-          [15.1, 55.32],
-          [14.68, 55.28],
-          [14.62, 54.96],
-        ],
-      ]),
-    ],
-  };
-}
-
-function createFallbackRegionFeature(
-  name: string,
-  regionCode: string,
-  localId: string,
-  polygons: number[][][],
-): RegionGeoJsonBoundaryFeature {
-  return {
-    type: "Feature",
-    properties: {
-      name,
-      regionCode,
-      localId,
-    },
-    geometry: {
-      type: "MultiPolygon",
-      coordinates: polygons.map((polygon) => [polygon]),
-    },
   };
 }
 

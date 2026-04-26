@@ -1905,8 +1905,8 @@ function getMapLibreFillColorExpression(
     return [
       "case",
       ["==", ["get", "hasValue"], true],
-      "rgba(31, 122, 90, 0.28)",
-      "rgba(20, 40, 29, 0.12)",
+      "rgba(37, 99, 235, 0.28)",
+      "rgba(15, 23, 42, 0.1)",
     ];
   }
 
@@ -1914,8 +1914,8 @@ function getMapLibreFillColorExpression(
     return [
       "case",
       ["==", ["get", "hasValue"], true],
-      "#1f7a5a",
-      "rgba(20, 40, 29, 0.12)",
+      "#2563eb",
+      "rgba(15, 23, 42, 0.1)",
     ];
   }
 
@@ -1927,11 +1927,13 @@ function getMapLibreFillColorExpression(
       ["linear"],
       ["get", "value"],
       minValue,
-      "#e5f1e8",
+      "#dbeafe",
+      (minValue + maxValue) / 2,
+      "#60a5fa",
       maxValue,
-      "#1f7a5a",
+      "#1d4ed8",
     ],
-    "rgba(20, 40, 29, 0.12)",
+    "rgba(15, 23, 42, 0.1)",
   ];
 }
 
