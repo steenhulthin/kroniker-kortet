@@ -679,19 +679,32 @@ export function App() {
     <div className="page-shell">
       <header className="app-header">
         <div className="app-header__title">
-          <p className="eyebrow">Kroniker-kortet</p>
-          <h1>Kroniske sygdomme på kort</h1>
+          <h1>Kroniker-kortet</h1>
+          <p className="app-header__subtitle">Kroniske sygdomme på kort</p>
         </div>
 
-        <div className="app-header__meta">
-          <div className="meta-card">
-            <span className="meta-card__label">Map metric</span>
-            <strong>Antal personer pr. 100.000 borgere</strong>
-          </div>
-          <div className="meta-card">
-            <span className="meta-card__label">Release source</span>
-            <code>{DEFAULT_LATEST_RELEASE_URL}</code>
-          </div>
+        <div className="github-repo-box">
+          <a
+            className="github-repo-link"
+            href="https://github.com/steenhulthin/kroniker-kortet"
+            target="_blank"
+            rel="noreferrer"
+            aria-label="Open kroniker-kortet on GitHub"
+          >
+            <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+              <path
+                fill="currentColor"
+                d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82A7.5 7.5 0 0 1 8 3.86c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"
+              />
+            </svg>
+            <span>GitHub</span>
+          </a>
+          <p className="github-repo-box__credit">
+            A #DagensDashboard by{" "}
+            <a href="https://steen.hulthin.dk/" target="_blank" rel="noreferrer">
+              Steenhulthin
+            </a>
+          </p>
         </div>
       </header>
 
@@ -1139,10 +1152,6 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
     filters && filterOptions
       ? getSelectedFilterLabel(filters.disease, toFilterDefinitions(filterOptions.disease))
       : "selected disease";
-  const selectedMetricLabel =
-    filters && filterOptions
-      ? getSelectedFilterLabel(filters.metric, toFilterDefinitions(filterOptions.metric))
-      : preferredMetricLabel;
   const selectedMeasureLabel =
     filters && filterOptions
       ? getSelectedFilterLabel(filters.measure, toFilterDefinitions(filterOptions.measure))
@@ -1414,7 +1423,6 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
           </div>
 
           <div className="map-status-panel map-preview">
-            <p className="map-canvas__metric">{selectedMetricLabel}</p>
             {isKOLRegionPrototype && regionMetricState.status === "ready" ? (
               <div className="preview-state">
                 <h3>{selectedMeasureLabel}</h3>
@@ -1571,30 +1579,6 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
               <p>3. Main map colored by `Antal personer pr. 100.000 borgere`.</p>
               <p>4. Start by proving the KOL path before broadening to other diseases.</p>
             </div>
-          </article>
-
-          <article className="panel">
-            <div className="panel__header">
-              <h2>Release context</h2>
-            </div>
-            <dl className="facts">
-              <div>
-                <dt>Release tag</dt>
-                <dd>{release.tag}</dd>
-              </div>
-              <div>
-                <dt>Published</dt>
-                <dd>{formatDateLabel(release.publishedAt)}</dd>
-              </div>
-              <div>
-                <dt>Preferred data file</dt>
-                <dd>{release.recommendedAsset.name}</dd>
-              </div>
-              <div>
-                <dt>Boundary source</dt>
-                <dd>Static DAGI region JSON</dd>
-              </div>
-            </dl>
           </article>
 
           <article className="panel">
@@ -1763,6 +1747,36 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
               <p>3. Join the filtered values to municipality or region polygons.</p>
             </div>
           </article>
+
+          <details className="panel panel--wide about-dashboard">
+            <summary>About the dashboard</summary>
+            <div className="about-dashboard__content">
+              <dl className="facts">
+                <div>
+                  <dt>Release source</dt>
+                  <dd>
+                    <code>{DEFAULT_LATEST_RELEASE_URL}</code>
+                  </dd>
+                </div>
+                <div>
+                  <dt>Release tag</dt>
+                  <dd>{release.tag}</dd>
+                </div>
+                <div>
+                  <dt>Published</dt>
+                  <dd>{formatDateLabel(release.publishedAt)}</dd>
+                </div>
+                <div>
+                  <dt>Preferred data file</dt>
+                  <dd>{release.recommendedAsset.name}</dd>
+                </div>
+                <div>
+                  <dt>Boundary source</dt>
+                  <dd>Static DAGI FlatGeobuf</dd>
+                </div>
+              </dl>
+            </div>
+          </details>
         </section>
       </section>
     </main>
