@@ -34,9 +34,11 @@ import {
   type RuksRegionRateMapRow,
 } from "../lib/ruks-map";
 import {
-  fetchStaticDagiRegionGeoJsonBoundaries,
-  type RegionGeoJsonBoundaryCollection,
-  type RegionGeoJsonBoundaryFeature,
+  fetchStaticDagiFlatGeobufBoundaries,
+  type DagiBoundaryCollection,
+  type DagiBoundaryCollections,
+  type DagiBoundaryFeature,
+  type DagiGeoLevel,
 } from "../lib/spatial-region-static";
 
 type ReleaseState =
@@ -102,7 +104,7 @@ type PreviewLoadState =
 
 type RegionBoundaryLoadState =
   | { status: "loading" }
-  | { status: "ready"; boundaries: RegionGeoJsonBoundaryCollection }
+  | { status: "ready"; boundaries: DagiBoundaryCollections }
   | { status: "error"; message: string };
 
 type RegionMetricLoadState =
@@ -702,9 +704,9 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
 
     setRegionBoundaryState({ status: "loading" });
 
-    async function loadRegionBoundaries() {
+    async function loadBoundaries() {
       try {
-        const boundaries = await fetchStaticDagiRegionGeoJsonBoundaries();
+        const boundaries = await fetchStaticDagiFlatGeobufBoundaries();
 
         if (cancelled) {
           return;
@@ -723,7 +725,7 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
       }
     }
 
-    void loadRegionBoundaries();
+    void loadBoundaries();
 
     return () => {
       cancelled = true;
@@ -967,7 +969,7 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
     }
 
     const activeFilters = toPreviewFilters(filters);
-    const boundaryRegionNames = regionBoundaryState.boundaries.features.map(
+    const boundaryRegionNames = regionBoundaryState.boundaries.region.features.map(
       (feature) => feature.properties.name,
     );
     let cancelled = false;
@@ -1047,6 +1049,8 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
   const sexOptions = filterOptions ? toFilterDefinitions(filterOptions.sex) : [];
   const sexSidebarFilter = sidebarFilters.find((filter) => filter.key === "sex");
   const isRegionView = filters?.geoLevel === "region";
+  const activeBoundaryLevel: DagiGeoLevel =
+    filters?.geoLevel === "region" ? "region" : "municipality";
   const isKOLRegionPrototype =
     isRegionView && filters.disease === preferredDiseaseSlug;
   const regionMapRows =
@@ -1066,6 +1070,10 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
     regionMaxValue,
   );
   const regionMapEmptyLabel = getRegionMapEmptyLabel(filters, regionMetricState);
+  const activeBoundaries =
+    regionBoundaryState.status === "ready"
+      ? regionBoundaryState.boundaries[activeBoundaryLevel]
+      : null;
   return (
     <main className="dashboard-layout">
       <aside className="sidebar panel">
@@ -1213,7 +1221,7 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
             <div>
               <h2>Map preview</h2>
               <p className="muted">
-                Choropleth view for the selected region snapshot.
+                Choropleth view for the selected geography snapshot.
               </p>
               <p className="muted">
                 Showing {release.tag} for {selectionSummary}
@@ -1242,19 +1250,23 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
                 ? "Live region map"
                 : isRegionView
                   ? "Static DAGI regions"
-                  : "Live DuckDB"}
+                  : "Static DAGI municipalities"}
             </span>
           </div>
 
           <div className="map-canvas">
             <div className="map-canvas__wash" />
-            {isRegionView && regionBoundaryState.status === "ready" ? (
-              <RegionMapLibre
-                boundaries={regionBoundaryState.boundaries}
-                rowsByRegion={regionValueByName}
+            {activeBoundaries ? (
+              <DagiBoundaryMapLibre
+                boundaries={activeBoundaries}
+                rowsByRegion={isRegionView ? regionValueByName : new Map()}
                 minValue={regionMinValue}
                 maxValue={regionMaxValue}
-                emptyLabel={regionMapEmptyLabel}
+                emptyLabel={
+                  isRegionView
+                    ? regionMapEmptyLabel
+                    : "municipality rates not joined yet"
+                }
                 muted={!(isKOLRegionPrototype && regionMetricState.status === "ready")}
               />
             ) : null}
@@ -1684,24 +1696,24 @@ function PreviewTablePanel({
   );
 }
 
-type RegionMapFeature = Omit<RegionGeoJsonBoundaryFeature, "properties"> & {
-  properties: RegionGeoJsonBoundaryFeature["properties"] & {
+type DagiBoundaryMapFeature = Omit<DagiBoundaryFeature, "properties"> & {
+  properties: DagiBoundaryFeature["properties"] & {
     value: number | null;
     valueLabel: string;
     hasValue: boolean;
   };
 };
 
-type RegionMapFeatureCollection = {
+type DagiBoundaryMapFeatureCollection = {
   type: "FeatureCollection";
-  features: RegionMapFeature[];
+  features: DagiBoundaryMapFeature[];
 };
 
-const REGION_MAP_SOURCE_ID = "ruks-regions";
-const REGION_MAP_FILL_LAYER_ID = "ruks-region-fill";
-const REGION_MAP_LINE_LAYER_ID = "ruks-region-line";
+const DAGI_MAP_SOURCE_ID = "ruks-dagi-boundaries";
+const DAGI_MAP_FILL_LAYER_ID = "ruks-dagi-boundary-fill";
+const DAGI_MAP_LINE_LAYER_ID = "ruks-dagi-boundary-line";
 
-function RegionMapLibre({
+function DagiBoundaryMapLibre({
   boundaries,
   rowsByRegion,
   minValue,
@@ -1709,7 +1721,7 @@ function RegionMapLibre({
   emptyLabel,
   muted,
 }: {
-  boundaries: RegionGeoJsonBoundaryCollection;
+  boundaries: DagiBoundaryCollection;
   rowsByRegion: Map<string, RuksRegionRateMapRow>;
   minValue: number;
   maxValue: number;
@@ -1719,8 +1731,8 @@ function RegionMapLibre({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const loadedRef = useRef(false);
-  const regionData = useMemo(
-    () => buildRegionMapFeatureCollection(boundaries, rowsByRegion, emptyLabel),
+  const boundaryData = useMemo(
+    () => buildDagiBoundaryMapFeatureCollection(boundaries, rowsByRegion, emptyLabel),
     [boundaries, rowsByRegion, emptyLabel],
   );
 
@@ -1756,11 +1768,11 @@ function RegionMapLibre({
 
     map.on("load", () => {
       loadedRef.current = true;
-      applyRegionMapState(map, regionData, minValue, maxValue, muted);
-      fitMapToRegionData(map, regionData);
-      map.on("click", REGION_MAP_FILL_LAYER_ID, (event) => {
+      applyDagiBoundaryMapState(map, boundaryData, minValue, maxValue, muted);
+      fitMapToBoundaryData(map, boundaryData);
+      map.on("click", DAGI_MAP_FILL_LAYER_ID, (event) => {
         const properties = event.features?.[0]?.properties as
-          | RegionMapFeature["properties"]
+          | DagiBoundaryMapFeature["properties"]
           | undefined;
 
         if (!properties) {
@@ -1772,10 +1784,10 @@ function RegionMapLibre({
           .setText(`${properties.name}: ${properties.valueLabel}`)
           .addTo(map);
       });
-      map.on("mouseenter", REGION_MAP_FILL_LAYER_ID, () => {
+      map.on("mouseenter", DAGI_MAP_FILL_LAYER_ID, () => {
         map.getCanvas().style.cursor = "pointer";
       });
-      map.on("mouseleave", REGION_MAP_FILL_LAYER_ID, () => {
+      map.on("mouseleave", DAGI_MAP_FILL_LAYER_ID, () => {
         map.getCanvas().style.cursor = "";
       });
     });
@@ -1796,18 +1808,18 @@ function RegionMapLibre({
       return;
     }
 
-    applyRegionMapState(map, regionData, minValue, maxValue, muted);
-    fitMapToRegionData(map, regionData);
-  }, [maxValue, minValue, muted, regionData]);
+    applyDagiBoundaryMapState(map, boundaryData, minValue, maxValue, muted);
+    fitMapToBoundaryData(map, boundaryData);
+  }, [maxValue, minValue, muted, boundaryData]);
 
   return <div ref={containerRef} className="region-maplibre" />;
 }
 
-function buildRegionMapFeatureCollection(
-  boundaries: RegionGeoJsonBoundaryCollection,
+function buildDagiBoundaryMapFeatureCollection(
+  boundaries: DagiBoundaryCollection,
   rowsByRegion: Map<string, RuksRegionRateMapRow>,
   emptyLabel: string,
-): RegionMapFeatureCollection {
+): DagiBoundaryMapFeatureCollection {
   return {
     type: "FeatureCollection",
     features: boundaries.features.map((feature) => {
@@ -1828,40 +1840,40 @@ function buildRegionMapFeatureCollection(
   };
 }
 
-function applyRegionMapState(
+function applyDagiBoundaryMapState(
   map: maplibregl.Map,
-  regionData: RegionMapFeatureCollection,
+  boundaryData: DagiBoundaryMapFeatureCollection,
   minValue: number,
   maxValue: number,
   muted: boolean,
 ) {
-  const source = map.getSource(REGION_MAP_SOURCE_ID) as
+  const source = map.getSource(DAGI_MAP_SOURCE_ID) as
     | maplibregl.GeoJSONSource
     | undefined;
 
   if (source) {
-    source.setData(regionData as never);
+    source.setData(boundaryData as never);
   } else {
-    map.addSource(REGION_MAP_SOURCE_ID, {
+    map.addSource(DAGI_MAP_SOURCE_ID, {
       type: "geojson",
-      data: regionData,
+      data: boundaryData,
     } as never);
   }
 
-  if (!map.getLayer(REGION_MAP_FILL_LAYER_ID)) {
+  if (!map.getLayer(DAGI_MAP_FILL_LAYER_ID)) {
     map.addLayer({
-      id: REGION_MAP_FILL_LAYER_ID,
+      id: DAGI_MAP_FILL_LAYER_ID,
       type: "fill",
-      source: REGION_MAP_SOURCE_ID,
+      source: DAGI_MAP_SOURCE_ID,
       paint: {},
     });
   }
 
-  if (!map.getLayer(REGION_MAP_LINE_LAYER_ID)) {
+  if (!map.getLayer(DAGI_MAP_LINE_LAYER_ID)) {
     map.addLayer({
-      id: REGION_MAP_LINE_LAYER_ID,
+      id: DAGI_MAP_LINE_LAYER_ID,
       type: "line",
-      source: REGION_MAP_SOURCE_ID,
+      source: DAGI_MAP_SOURCE_ID,
       paint: {
         "line-color": "rgba(20, 40, 29, 0.32)",
         "line-width": 1.2,
@@ -1870,12 +1882,12 @@ function applyRegionMapState(
   }
 
   map.setPaintProperty(
-    REGION_MAP_FILL_LAYER_ID,
+    DAGI_MAP_FILL_LAYER_ID,
     "fill-color",
     getMapLibreFillColorExpression(minValue, maxValue, muted),
   );
   map.setPaintProperty(
-    REGION_MAP_FILL_LAYER_ID,
+    DAGI_MAP_FILL_LAYER_ID,
     "fill-opacity",
     muted ? 0.48 : 0.9,
   );
@@ -1922,11 +1934,11 @@ function getMapLibreFillColorExpression(
   ];
 }
 
-function fitMapToRegionData(
+function fitMapToBoundaryData(
   map: maplibregl.Map,
-  regionData: RegionMapFeatureCollection,
+  boundaryData: DagiBoundaryMapFeatureCollection,
 ) {
-  const bounds = getRegionDataBounds(regionData);
+  const bounds = getBoundaryDataBounds(boundaryData);
 
   if (!bounds) {
     return;
@@ -1938,15 +1950,15 @@ function fitMapToRegionData(
   });
 }
 
-function getRegionDataBounds(
-  regionData: RegionMapFeatureCollection,
+function getBoundaryDataBounds(
+  boundaryData: DagiBoundaryMapFeatureCollection,
 ): maplibregl.LngLatBoundsLike | null {
   let minLng = Number.POSITIVE_INFINITY;
   let minLat = Number.POSITIVE_INFINITY;
   let maxLng = Number.NEGATIVE_INFINITY;
   let maxLat = Number.NEGATIVE_INFINITY;
 
-  for (const feature of regionData.features) {
+  for (const feature of boundaryData.features) {
     for (const polygon of feature.geometry.coordinates) {
       for (const ring of polygon) {
         for (const [lng, lat] of ring) {

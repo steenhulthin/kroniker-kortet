@@ -28,7 +28,13 @@ npm run dev
 
 The app looks for `VITE_RUKS_LATEST_RELEASE_URL` first. If that variable is unset, it defaults to the public GitHub endpoint for the latest `steenhulthin/ruks-data` release. If that request fails, it falls back to the bundled sample at `public/data/latest-release.json`.
 
-Region boundaries are loaded from the static DAGI-derived artifact at `public/data/dagi-regions.geojson`. Set `VITE_DAGI_REGION_BOUNDARIES_URL` to point at a different static boundary artifact.
+Municipality and region boundaries are loaded from static DAGI-derived FlatGeobuf artifacts at `public/data/dagi-municipalities.fgb` and `public/data/dagi-regions.fgb`. Set `VITE_DAGI_MUNICIPALITY_BOUNDARIES_URL` or `VITE_DAGI_REGION_BOUNDARIES_URL` to point at different static boundary artifacts.
+
+The bundled `.fgb` files are generated from the local 1:2,000,000 DAGI shapefiles and reprojected from ETRS89 / UTM zone 32N to WGS84 for MapLibre:
+
+```bash
+npm run build:boundaries
+```
 
 Example:
 
