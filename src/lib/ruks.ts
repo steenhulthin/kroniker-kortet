@@ -126,7 +126,7 @@ export function resolveRuksParquetUrl(release: RuksLatestRelease): string {
 
   if (!parquetAsset) {
     throw new Error(
-      `Release ${release.tag} does not include the required parquet asset: ruks_hovedresultater_long.parquet.`,
+      `Release ${release.tag} does not include the required ruks_hovedresultater_long Parquet asset.`,
     );
   }
 
@@ -212,11 +212,47 @@ function appAssetUrl(path: string): string {
 }
 
 function resolveRuksAssetUrl(url: string): string {
+  const bundledAssetUrl = import.meta.env.DEV
+    ? null
+    : resolveBundledRuksAssetUrl(url);
+
+  if (bundledAssetUrl) {
+    return bundledAssetUrl;
+  }
+
   if (/^https?:\/\//i.test(url) || url.startsWith("/")) {
     return url;
   }
 
   return appAssetUrl(url);
+}
+
+function resolveBundledRuksAssetUrl(url: string): string | null {
+  let parsedUrl: URL;
+
+  try {
+    parsedUrl = new URL(url, "https://example.invalid");
+  } catch {
+    return null;
+  }
+
+  const fileName = parsedUrl.pathname.split("/").at(-1);
+
+  if (
+    !fileName ||
+    !/^ruks_hovedresultater_long(?:-.+)?\.parquet$/.test(fileName)
+  ) {
+    return null;
+  }
+
+  if (
+    parsedUrl.hostname === "github.com" &&
+    /^\/steenhulthin\/ruks-data\/releases\/download\//.test(parsedUrl.pathname)
+  ) {
+    return appAssetUrl(`data/${fileName}`);
+  }
+
+  return null;
 }
 
 async function fetchReleaseMetadata(url: string): Promise<Response> {

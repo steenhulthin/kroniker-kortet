@@ -404,11 +404,41 @@ function debugDuckDb(event: string, details?: Record<string, unknown>) {
 }
 
 function resolveParquetFetchUrl(parquetUrl: string): string {
+  const staticParquetUrl = resolveStaticRuksParquetUrl(parquetUrl);
+
   if (!import.meta.env.DEV) {
-    return parquetUrl;
+    return staticParquetUrl ?? parquetUrl;
   }
 
   return `/api/ruks-release-asset?url=${encodeURIComponent(parquetUrl)}`;
+}
+
+function resolveStaticRuksParquetUrl(url: string): string | null {
+  let parsedUrl: URL;
+
+  try {
+    parsedUrl = new URL(url, "https://example.invalid");
+  } catch {
+    return null;
+  }
+
+  const fileName = parsedUrl.pathname.split("/").at(-1);
+
+  if (
+    !fileName ||
+    !/^ruks_hovedresultater_long(?:-.+)?\.parquet$/.test(fileName)
+  ) {
+    return null;
+  }
+
+  if (
+    parsedUrl.hostname === "github.com" &&
+    /^\/steenhulthin\/ruks-data\/releases\/download\//.test(parsedUrl.pathname)
+  ) {
+    return `${import.meta.env.BASE_URL}data/${fileName}`;
+  }
+
+  return null;
 }
 
 async function fetchParquetBuffer(fetchUrl: string): Promise<Uint8Array> {

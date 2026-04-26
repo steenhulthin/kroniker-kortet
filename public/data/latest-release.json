@@ -23,7 +23,7 @@
     },
     {
       "name": "ruks_hovedresultater_long.parquet",
-      "browser_download_url": "https://github.com/steenhulthin/ruks-data/releases/download/ruks-2025-11-28/ruks_hovedresultater_long.parquet",
+      "browser_download_url": "data/ruks_hovedresultater_long.parquet",
       "size": 2901599,
       "content_type": "application/octet-stream",
       "download_count": 0,
