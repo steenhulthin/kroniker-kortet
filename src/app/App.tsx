@@ -34,10 +34,10 @@ import {
   type RuksRegionRateMapRow,
 } from "../lib/ruks-map";
 import {
-  fetchTemporaryDagiRegionGeoJsonBoundaries,
+  fetchStaticDagiRegionGeoJsonBoundaries,
   type RegionGeoJsonBoundaryCollection,
   type RegionGeoJsonBoundaryFeature,
-} from "../lib/spatial-region-wfs";
+} from "../lib/spatial-region-static";
 
 type ReleaseState =
   | { status: "loading" }
@@ -704,7 +704,7 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
 
     async function loadRegionBoundaries() {
       try {
-        const boundaries = await fetchTemporaryDagiRegionGeoJsonBoundaries();
+        const boundaries = await fetchStaticDagiRegionGeoJsonBoundaries();
 
         if (cancelled) {
           return;
@@ -1069,10 +1069,6 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
     regionMaxValue,
   );
   const regionMapEmptyLabel = getRegionMapEmptyLabel(filters, regionMetricState);
-  const isUsingFallbackRegionBoundaries =
-    regionBoundaryState.status === "ready" &&
-    regionBoundaryState.boundaries.source === "local-region-schematic-fallback";
-
   return (
     <main className="dashboard-layout">
       <aside className="sidebar panel">
@@ -1245,12 +1241,10 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
               </p>
             </div>
             <span className="pill">
-              {isUsingFallbackRegionBoundaries
-                ? "Schematic fallback"
-                : isKOLRegionPrototype && regionMetricState.status === "ready"
+              {isKOLRegionPrototype && regionMetricState.status === "ready"
                 ? "Live region map"
                 : isRegionView
-                  ? "KOL-first region slice"
+                  ? "Static DAGI regions"
                   : "Live DuckDB"}
             </span>
           </div>
@@ -1283,12 +1277,6 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
                   Region values are joined by exact region name and colored by the
                   selected non-standardized rate.
                 </p>
-                {isUsingFallbackRegionBoundaries ? (
-                  <p className="muted">
-                    DAGI WFS is currently unavailable, so the map is using a temporary
-                    schematic region layer instead of official boundaries.
-                  </p>
-                ) : null}
               </div>
             ) : null}
             {filters?.geoLevel === "region" &&
@@ -1315,7 +1303,7 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
               <div className="preview-state">
                 <h3>Loading region boundaries</h3>
                 <p className="muted">
-                  Fetching the temporary DAGI WFS region geometry path for the first real
+                  Loading the static DAGI region boundary artifact for the first real
                   choropleth prototype.
                 </p>
               </div>
@@ -1418,7 +1406,7 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
               </div>
               <div>
                 <dt>Boundary source</dt>
-                <dd>DAGI WFS</dd>
+                <dd>Static DAGI region JSON</dd>
               </div>
             </dl>
           </article>

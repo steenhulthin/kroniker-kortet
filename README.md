@@ -28,6 +28,8 @@ npm run dev
 
 The app looks for `VITE_RUKS_LATEST_RELEASE_URL` first. If that variable is unset, it defaults to the public GitHub endpoint for the latest `steenhulthin/ruks-data` release. If that request fails, it falls back to the bundled sample at `public/data/latest-release.json`.
 
+Region boundaries are loaded from the static DAGI-derived artifact at `public/data/dagi-regions.geojson`. Set `VITE_DAGI_REGION_BOUNDARIES_URL` to point at a different static boundary artifact.
+
 Example:
 
 ```bash

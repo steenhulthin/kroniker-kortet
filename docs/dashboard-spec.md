@@ -27,7 +27,7 @@
 
 ## Current implementation state
 
-- The app shell includes a region-first choropleth path backed by live DAGI WFS geometry and DuckDB-filtered KOL rate rows.
+- The app shell includes a region-first choropleth path backed by static DAGI-derived region geometry and DuckDB-filtered KOL rate rows.
 - The first-map measure contract is explicit: `Antal personer med sygdom` displayed as `Antal personer pr. 100.000 borgere`.
 - The default map slice uses region, latest year, `Alle aldre`, and `Begge`.
 - Temporary exact-name region join diagnostics are visible in the product.

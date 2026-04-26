@@ -1,0 +1,14 @@
+{
+  "source": "DAGI WFS Regionsinddeling",
+  "sourceServiceUrl": "https://api.dataforsyningen.dk/DAGI_10MULTIGEOM_GMLSFP_DAF",
+  "sourceTypeName": "dagi:Regionsinddeling",
+  "sourceCrs": "EPSG:25832",
+  "outputCrs": "EPSG:4326",
+  "generatedAt": "2026-04-26T11:48:36.736Z",
+  "sourceTimestamp": "2026-04-26T13:31:18",
+  "numberMatched": 5,
+  "numberReturned": 5,
+  "simplificationToleranceDegrees": 0.0007,
+  "originalPointCount": 1155366,
+  "simplifiedPointCount": 42657
+}

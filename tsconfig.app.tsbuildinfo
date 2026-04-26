@@ -1,1 +1,1 @@
-{"root":["./src/main.tsx","./src/vite-env.d.ts","./src/app/App.tsx","./src/lib/ruks-duckdb.ts","./src/lib/ruks-map.ts","./src/lib/ruks-region-join-diagnostics.ts","./src/lib/ruks.ts","./src/lib/spatial-region-wfs.ts","./src/lib/spatial.ts"],"version":"5.9.3"}
+{"root":["./src/main.tsx","./src/vite-env.d.ts","./src/app/App.tsx","./src/lib/ruks-duckdb.ts","./src/lib/ruks-map.ts","./src/lib/ruks-region-join-diagnostics.ts","./src/lib/ruks.ts","./src/lib/spatial-region-static.ts","./src/lib/spatial.ts"],"version":"5.9.3"}

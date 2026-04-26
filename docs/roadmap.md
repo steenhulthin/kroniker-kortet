@@ -2,7 +2,7 @@
 
 ## Current checkpoint
 
-- The temporary DAGI region WFS/GML path is in place.
+- The temporary live DAGI region WFS/GML path has been replaced in the app by a static DAGI-derived region GeoJSON artifact.
 - The geography join contract is documented.
 - Region join diagnostics and source/methodology copy are visible in the UI.
 - The surviving KOL region-rate candidates are surfaced in the product instead of being hidden behind a generic map failure.
@@ -32,7 +32,7 @@
 
 - Select Danish municipality and region boundary data from Dataforsyningen
 - Define join keys between geometry and RUKS geography labels
-- Add a temporary live WFS/GML region-boundary path so the first region prototype can ship before the final boundary artifact format is settled
+- Add a temporary static region-boundary JSON artifact so the first region prototype can ship before the final boundary artifact format is settled
 - Add join diagnostics for the temporary region join so missing or duplicate matches are visible before map sign-off
 - Choose the browser delivery format for boundaries, with `PMTiles` and `FlatGeobuf` as the primary candidates
 - Prove the first real choropleth with `KOL` only after the measure contract and join diagnostics remain closed

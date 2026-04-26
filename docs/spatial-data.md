@@ -9,9 +9,14 @@ The expected source is `Dataforsyningen`:
 
 - https://dataforsyningen.dk/data
 
-## Current source
+## Current Source
 
-For now, the working WFS source is:
+The app currently loads region boundaries from:
+
+- `public/data/dagi-regions.geojson`
+- metadata: `public/data/dagi-regions.meta.json`
+
+The artifact was derived from the DAGI WFS region layer and simplified for browser rendering. The live WFS endpoint remains an upstream source reference, not a runtime dependency:
 
 - `DAGI_10MULTIGEOM_GMLSFP_DAF`
 - capabilities URL:
@@ -34,18 +39,18 @@ Verified from the current capabilities document:
 - Temporary project assumption: duplicate KOL municipality rows for Bornholm are treated as a Christiansø-related artifact until the upstream data issue is clarified
 - That assumption affects the statistical side before the geometry join, not the boundary geometry itself
 
-## Current implementation state
+## Current Implementation State
 
-- The temporary DAGI region WFS/GML fetch-and-parse path exists and is good enough for a region prototype.
+- The app uses a static DAGI-derived region GeoJSON artifact for the region prototype.
 - The geography join contract is documented and currently relies on exact name matching as the first pass.
 - Exact-name region join diagnostics are visible in the app for the active region selection.
-- The first real region map should still be treated as blocked rather than done.
+- The first real region map should still be treated as a KOL-first validation slice rather than a fully broadened production map.
 - Current blockers:
-  - the filtered region-rate query can still match more than one measure code, so the first-map measure contract is not closed
+  - municipality mode still needs municipality geometry and join diagnostics
 
 ## Join Contract
 
-The WFS-side schema is good enough to support a first explicit join contract:
+The DAGI schema is good enough to support a first explicit join contract:
 
 - `dagi:Kommuneinddeling` exposes:
   - `Navn`
@@ -122,8 +127,8 @@ Project implication:
 
 Until a final boundary delivery artifact is prepared, the project can take a temporary region-first path:
 
-- fetch `dagi:Regionsinddeling` live from DAGI WFS
-- parse the returned GML in the browser
+- prepare `dagi:Regionsinddeling` from DAGI outside the browser
+- publish the derived static GeoJSON in `public/data/`
 - render only the five regions as a prototype toward the first real choropleth
 
 This is a temporary implementation choice, not the final delivery contract.
@@ -131,7 +136,7 @@ This is a temporary implementation choice, not the final delivery contract.
 Reasoning:
 
 - the service is already a verified source in this project
-- region geometry is small enough to prototype safely
+- static region geometry is small enough to prototype safely
 - it lets the product prove the map/join path before committing to `PMTiles` or `FlatGeobuf`
 
 Guardrail:
