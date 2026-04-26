@@ -2056,7 +2056,7 @@ function applyDagiBoundaryMapState(
       type: "line",
       source: DAGI_MAP_SOURCE_ID,
       paint: {
-        "line-color": "rgba(20, 40, 29, 0.32)",
+        "line-color": "rgba(44, 62, 80, 0.34)",
         "line-width": 1.2,
       },
     });
@@ -2083,8 +2083,8 @@ function getMapLibreFillColorExpression(
     return [
       "case",
       ["==", ["get", "hasValue"], true],
-      "rgba(37, 99, 235, 0.28)",
-      "rgba(15, 23, 42, 0.1)",
+      "rgba(0, 102, 204, 0.2)",
+      "rgba(44, 62, 80, 0.08)",
     ];
   }
 
@@ -2092,8 +2092,8 @@ function getMapLibreFillColorExpression(
     return [
       "case",
       ["==", ["get", "hasValue"], true],
-      "#2563eb",
-      "rgba(15, 23, 42, 0.1)",
+      "#0066cc",
+      "rgba(44, 62, 80, 0.08)",
     ];
   }
 
@@ -2105,13 +2105,13 @@ function getMapLibreFillColorExpression(
       ["linear"],
       ["get", "value"],
       minValue,
-      "#dbeafe",
+      "#e5f0fb",
       (minValue + maxValue) / 2,
-      "#60a5fa",
+      "#5ca5eb",
       maxValue,
-      "#1d4ed8",
+      "#0052a3",
     ],
-    "rgba(15, 23, 42, 0.1)",
+    "rgba(44, 62, 80, 0.08)",
   ];
 }
 
