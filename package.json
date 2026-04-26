@@ -9,6 +9,7 @@
   },
   "scripts": {
     "build:boundaries": "node scripts/build-dagi-flatgeobuf.mjs",
+    "sync:ruks-release": "node scripts/sync-ruks-release.mjs",
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",

@@ -33,7 +33,14 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      - name: Sync RUKS release assets
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: npm run sync:ruks-release
+
       - name: Build
+        env:
+          VITE_RUKS_LATEST_RELEASE_URL: ./data/latest-release.json
         run: npm run build
 
       - name: Upload Pages artifact

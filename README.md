@@ -46,6 +46,8 @@ VITE_RUKS_LATEST_RELEASE_URL=https://api.github.com/repos/steenhulthin/ruks-data
 
 The repository includes `.github/workflows/pages.yml`, which builds the Vite app and uploads `dist/` as a GitHub Pages artifact. In GitHub, configure Pages to use **GitHub Actions** as the source.
 
+The workflow runs `npm run sync:ruks-release` before building. That step downloads the latest RUKS Parquet release asset into `public/data/` and rewrites the bundled release metadata to point at the local static copy, avoiding browser CORS issues with GitHub release assets.
+
 Production builds default to the GitHub Pages project path `/kroniker-kortet/`. Override it for another static host with:
 
 ```bash

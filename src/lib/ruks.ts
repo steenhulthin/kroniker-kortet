@@ -135,7 +135,7 @@ export function resolveRuksParquetUrl(release: RuksLatestRelease): string {
     );
   }
 
-  return parquetAsset.url;
+  return resolveRuksAssetUrl(parquetAsset.url);
 }
 
 function normalizeRelease(
@@ -214,4 +214,12 @@ function classifyAsset(name: string): RuksArtifactKind | null {
 
 function appAssetUrl(path: string): string {
   return `${import.meta.env.BASE_URL}${path.replace(/^\/+/, "")}`;
+}
+
+function resolveRuksAssetUrl(url: string): string {
+  if (/^https?:\/\//i.test(url) || url.startsWith("/")) {
+    return url;
+  }
+
+  return appAssetUrl(url);
 }
