@@ -186,6 +186,13 @@ async function createDuckDbBootstrap(): Promise<RuksDuckDbBootstrap> {
     throw new Error("DuckDB-Wasm bundle selection did not return a browser worker.");
   }
 
+  debugDuckDb("bundle:selected", {
+    mainModule: bundle.mainModule,
+    mainWorker: bundle.mainWorker,
+    pthreadWorker: bundle.pthreadWorker,
+    runtime: getRuntimeDiagnostics(),
+  });
+
   const worker = new Worker(bundle.mainWorker);
   const db = new duckdb.AsyncDuckDB(
     DUCKDB_DEBUG ? new duckdb.ConsoleLogger() : new duckdb.VoidLogger(),
@@ -245,17 +252,14 @@ async function ensureRuksParquetSource(
     return RUKS_PARQUET_SOURCE_NAME;
   }
 
-  debugDuckDb("parquet:fetch:start", { parquetUrl, fetchUrl });
+  debugDuckDb("parquet:fetch:start", {
+    parquetUrl,
+    fetchUrl,
+    absoluteFetchUrl: resolveAbsoluteUrl(fetchUrl),
+    runtime: getRuntimeDiagnostics(),
+  });
 
-  const response = await fetch(fetchUrl, { cache: "no-store" });
-
-  if (!response.ok) {
-    throw new Error(
-      `Parquet fetch failed with ${response.status} ${response.statusText}`,
-    );
-  }
-
-  const buffer = new Uint8Array(await response.arrayBuffer());
+  const buffer = await fetchParquetBuffer(fetchUrl);
 
   debugDuckDb("parquet:fetch:done", {
     parquetUrl,
@@ -374,10 +378,12 @@ function isFilterRange(value: RuksFilterSelectionValue): value is RuksFilterRang
 
 function createRuksDuckDbError(message: string, cause: unknown): Error {
   if (cause instanceof Error) {
+    console.error("[ruks-duckdb]", message, cause);
     return new Error(`${message} ${cause.message}`, { cause });
   }
 
   if (cause !== undefined) {
+    console.error("[ruks-duckdb]", message, cause);
     return new Error(`${message} ${String(cause)}`, { cause });
   }
 
@@ -403,4 +409,72 @@ function resolveParquetFetchUrl(parquetUrl: string): string {
   }
 
   return `/api/ruks-release-asset?url=${encodeURIComponent(parquetUrl)}`;
+}
+
+async function fetchParquetBuffer(fetchUrl: string): Promise<Uint8Array> {
+  let response: Response;
+
+  try {
+    response = await fetch(fetchUrl, { cache: "no-store" });
+  } catch (error) {
+    throw new Error(
+      [
+        "Parquet-filen kunne ikke hentes.",
+        `URL: ${fetchUrl}`,
+        `Absolut URL: ${resolveAbsoluteUrl(fetchUrl)}`,
+        `BASE_URL: ${import.meta.env.BASE_URL}`,
+        `Side: ${getRuntimeDiagnostics().pageUrl}`,
+        `Årsag: ${formatErrorCause(error)}`,
+      ].join(" "),
+      { cause: error },
+    );
+  }
+
+  if (!response.ok) {
+    throw new Error(
+      [
+        `Parquet-hentning fejlede med ${response.status} ${response.statusText}.`,
+        `URL: ${fetchUrl}`,
+        `Absolut URL: ${resolveAbsoluteUrl(fetchUrl)}`,
+        `Content-Type: ${response.headers.get("content-type") ?? "ukendt"}`,
+      ].join(" "),
+    );
+  }
+
+  const contentType = response.headers.get("content-type") ?? "ukendt";
+  const buffer = new Uint8Array(await response.arrayBuffer());
+
+  if (buffer.byteLength === 0) {
+    throw new Error(
+      `Parquet-hentning returnerede en tom fil. URL: ${fetchUrl}. Content-Type: ${contentType}.`,
+    );
+  }
+
+  return buffer;
+}
+
+function resolveAbsoluteUrl(url: string): string {
+  if (typeof window === "undefined") {
+    return url;
+  }
+
+  return new URL(url, window.location.href).href;
+}
+
+function getRuntimeDiagnostics(): Record<string, string | boolean> {
+  return {
+    baseUrl: import.meta.env.BASE_URL,
+    dev: import.meta.env.DEV,
+    mode: import.meta.env.MODE,
+    pageUrl: typeof window === "undefined" ? "unavailable" : window.location.href,
+    origin: typeof window === "undefined" ? "unavailable" : window.location.origin,
+  };
+}
+
+function formatErrorCause(error: unknown): string {
+  if (error instanceof Error) {
+    return `${error.name}: ${error.message}`;
+  }
+
+  return String(error);
 }

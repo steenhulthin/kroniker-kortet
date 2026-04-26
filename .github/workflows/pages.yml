@@ -43,6 +43,9 @@ jobs:
           VITE_RUKS_LATEST_RELEASE_URL: ./data/latest-release.json
         run: npm run build
 
+      - name: Validate Pages artifact
+        run: npm run validate:pages-artifact
+
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:

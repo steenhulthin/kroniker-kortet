@@ -54,12 +54,7 @@ export async function loadLatestRuksRelease(
   fallbackUrl: string = DEFAULT_RELEASE_FALLBACK_URL,
 ): Promise<RuksLatestRelease> {
   try {
-    const response = await fetch(apiUrl, {
-      cache: "no-store",
-      headers: {
-        Accept: "application/vnd.github+json",
-      },
-    });
+    const response = await fetchReleaseMetadata(apiUrl);
 
     if (!response.ok) {
       throw new Error(`GitHub release request failed with ${response.status}`);
@@ -67,7 +62,7 @@ export async function loadLatestRuksRelease(
 
     return normalizeRelease((await response.json()) as GithubLatestRelease, apiUrl);
   } catch (error) {
-    const fallbackResponse = await fetch(fallbackUrl, { cache: "no-store" });
+    const fallbackResponse = await fetchReleaseFallback(fallbackUrl);
 
     if (!fallbackResponse.ok) {
       const message =
@@ -222,4 +217,47 @@ function resolveRuksAssetUrl(url: string): string {
   }
 
   return appAssetUrl(url);
+}
+
+async function fetchReleaseMetadata(url: string): Promise<Response> {
+  try {
+    return await fetch(url, {
+      cache: "no-store",
+      headers: {
+        Accept: "application/vnd.github+json",
+      },
+    });
+  } catch (error) {
+    throw new Error(
+      `Udgivelsesmetadata kunne ikke hentes. URL: ${url}. Absolut URL: ${resolveAbsoluteUrl(url)}. Årsag: ${formatErrorCause(error)}`,
+      { cause: error },
+    );
+  }
+}
+
+async function fetchReleaseFallback(url: string): Promise<Response> {
+  try {
+    return await fetch(url, { cache: "no-store" });
+  } catch (error) {
+    throw new Error(
+      `Fallbackmetadata kunne ikke hentes. URL: ${url}. Absolut URL: ${resolveAbsoluteUrl(url)}. Årsag: ${formatErrorCause(error)}`,
+      { cause: error },
+    );
+  }
+}
+
+function resolveAbsoluteUrl(url: string): string {
+  if (typeof window === "undefined") {
+    return url;
+  }
+
+  return new URL(url, window.location.href).href;
+}
+
+function formatErrorCause(error: unknown): string {
+  if (error instanceof Error) {
+    return `${error.name}: ${error.message}`;
+  }
+
+  return String(error);
 }
