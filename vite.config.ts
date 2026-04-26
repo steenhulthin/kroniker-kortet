@@ -1,6 +1,8 @@
 import react from "@vitejs/plugin-react";
 import { defineConfig, type Plugin } from "vite";
 
+const githubPagesBase = "/kroniker-kortet/";
+
 function ruksReleaseAssetProxy(): Plugin {
   return {
     name: "ruks-release-asset-proxy",
@@ -62,6 +64,10 @@ function ruksReleaseAssetProxy(): Plugin {
   };
 }
 
-export default defineConfig({
+export default defineConfig(({ command }) => ({
+  base:
+    command === "build"
+      ? process.env.VITE_APP_BASE_PATH ?? githubPagesBase
+      : "/",
   plugins: [react(), ruksReleaseAssetProxy()],
-});
+}));

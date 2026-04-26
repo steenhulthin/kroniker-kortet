@@ -46,7 +46,8 @@ export const DEFAULT_LATEST_RELEASE_URL =
   "https://api.github.com/repos/steenhulthin/ruks-data/releases/latest";
 
 export const DEFAULT_RELEASE_FALLBACK_URL =
-  import.meta.env.VITE_RUKS_RELEASE_FALLBACK_URL ?? "/data/latest-release.json";
+  import.meta.env.VITE_RUKS_RELEASE_FALLBACK_URL ??
+  appAssetUrl("data/latest-release.json");
 
 export async function loadLatestRuksRelease(
   apiUrl: string = DEFAULT_LATEST_RELEASE_URL,
@@ -209,4 +210,8 @@ function classifyAsset(name: string): RuksArtifactKind | null {
   }
 
   return null;
+}
+
+function appAssetUrl(path: string): string {
+  return `${import.meta.env.BASE_URL}${path.replace(/^\/+/, "")}`;
 }

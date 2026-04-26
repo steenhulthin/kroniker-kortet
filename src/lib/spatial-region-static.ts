@@ -31,8 +31,10 @@ export type DagiBoundaryCollection = {
 
 export type DagiBoundaryCollections = Record<DagiGeoLevel, DagiBoundaryCollection>;
 
-const DEFAULT_MUNICIPALITY_BOUNDARIES_URL = "/data/dagi-municipalities.fgb";
-const DEFAULT_REGION_BOUNDARIES_URL = "/data/dagi-regions.fgb";
+const DEFAULT_MUNICIPALITY_BOUNDARIES_URL = appAssetUrl(
+  "data/dagi-municipalities.fgb",
+);
+const DEFAULT_REGION_BOUNDARIES_URL = appAssetUrl("data/dagi-regions.fgb");
 
 export async function fetchStaticDagiFlatGeobufBoundaries(): Promise<DagiBoundaryCollections> {
   const [municipality, region] = await Promise.all([
@@ -120,4 +122,8 @@ function isDagiBoundaryProperties(
       typeof properties.municipalityCode === "string") &&
     (properties.nuts2Code === undefined || typeof properties.nuts2Code === "string")
   );
+}
+
+function appAssetUrl(path: string): string {
+  return `${import.meta.env.BASE_URL}${path.replace(/^\/+/, "")}`;
 }

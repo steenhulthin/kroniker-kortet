@@ -42,6 +42,16 @@ Example:
 VITE_RUKS_LATEST_RELEASE_URL=https://api.github.com/repos/steenhulthin/ruks-data/releases/latest npm run dev
 ```
 
+## GitHub Pages deployment
+
+The repository includes `.github/workflows/pages.yml`, which builds the Vite app and uploads `dist/` as a GitHub Pages artifact. In GitHub, configure Pages to use **GitHub Actions** as the source.
+
+Production builds default to the GitHub Pages project path `/kroniker-kortet/`. Override it for another static host with:
+
+```bash
+VITE_APP_BASE_PATH=/ npm run build
+```
+
 ## Project layout
 
 - `src/app/`: app shell and data loading
