@@ -890,7 +890,6 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
         const [audit, rows] = await Promise.all([
           auditRuksRegionRateCandidates(release, {
             disease: activeFilters.disease,
-            measure: activeFilters.measure,
             metric: activeFilters.metric,
             year: activeFilters.year,
             ageGroup: activeFilters.ageGroup,
@@ -898,7 +897,6 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
           }),
           queryRuksRegionRateMapRows(release, {
             disease: activeFilters.disease,
-            measure: activeFilters.measure,
             metric: activeFilters.metric,
             year: activeFilters.year,
             ageGroup: activeFilters.ageGroup,
@@ -925,7 +923,6 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
         try {
           const audit = await auditRuksRegionRateCandidates(release, {
             disease: activeFilters.disease,
-            measure: activeFilters.measure,
             metric: activeFilters.metric,
             year: activeFilters.year,
             ageGroup: activeFilters.ageGroup,

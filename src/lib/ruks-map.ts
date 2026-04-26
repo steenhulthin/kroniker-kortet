@@ -18,7 +18,7 @@ type RegionRateCandidateRow = {
 
 export type RuksRegionRateMapFilters = Pick<
   RuksFilterSelection,
-  "disease" | "measure" | "metric" | "year" | "ageGroup" | "sex"
+  "disease" | "metric" | "year" | "ageGroup" | "sex"
 >;
 
 export type RuksRegionRateMapRow = {
@@ -96,9 +96,8 @@ export async function queryRuksRegionRateMapRows(
   filters: RuksRegionRateMapFilters,
 ): Promise<RuksRegionRateMapRow[]> {
   const audit = await auditRuksRegionRateCandidates(release, filters);
-  const matchingMeasureCodes = new Set(
-    audit.candidates.map((candidate) => candidate.measureCode),
-  );
+  const selectedCandidates = selectRegionRateMapCandidates(audit.candidates);
+  const matchingMeasureCodes = new Set(selectedCandidates.map((candidate) => candidate.measureCode));
 
   if (matchingMeasureCodes.size > 1) {
     const measureSummary = audit.measures
@@ -115,7 +114,7 @@ export async function queryRuksRegionRateMapRows(
 
   const rowsByRegion = new Map<string, RuksRegionRateMapRow>();
 
-  for (const candidate of audit.candidates) {
+  for (const candidate of selectedCandidates) {
     if (rowsByRegion.has(candidate.regionName)) {
       throw new Error(
         `Region map query returned multiple rate rows for ${candidate.regionName}.`,
@@ -127,6 +126,40 @@ export async function queryRuksRegionRateMapRows(
 
   return Array.from(rowsByRegion.values()).sort((left, right) =>
     left.regionName.localeCompare(right.regionName, "da-DK"),
+  );
+}
+
+function selectRegionRateMapCandidates(
+  candidates: readonly RuksRegionRateMapRow[],
+): RuksRegionRateMapRow[] {
+  const measureCodes = new Set(candidates.map((candidate) => candidate.measureCode));
+
+  if (measureCodes.size <= 1) {
+    return [...candidates];
+  }
+
+  const preferredCandidates = candidates.filter((candidate) =>
+    isPreferredRegionRateMeasure(candidate),
+  );
+  const preferredMeasureCodes = new Set(
+    preferredCandidates.map((candidate) => candidate.measureCode),
+  );
+
+  return preferredMeasureCodes.size === 1 ? preferredCandidates : [...candidates];
+}
+
+function isPreferredRegionRateMeasure(candidate: RuksRegionRateMapRow): boolean {
+  const normalized =
+    `${candidate.measureCode} ${candidate.measureLabel} ${candidate.sourceUnitLabel}`.toLocaleLowerCase(
+      "da-DK",
+    );
+
+  return (
+    !normalized.includes("incidens") &&
+    (normalized.includes("personer med sygdom") ||
+      normalized.includes("prævalens") ||
+      normalized.includes("praevalens") ||
+      normalized.includes("prevalence"))
   );
 }
 
