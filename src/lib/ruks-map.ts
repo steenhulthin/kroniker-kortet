@@ -276,5 +276,14 @@ function readText(value: unknown): string | null {
 }
 
 function readNumber(value: unknown): number | null {
-  return typeof value === "number" && Number.isFinite(value) ? value : null;
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : null;
+  }
+
+  if (typeof value === "bigint") {
+    const numberValue = Number(value);
+    return Number.isSafeInteger(numberValue) ? numberValue : null;
+  }
+
+  return null;
 }
