@@ -7,6 +7,7 @@ import {
 
 type RegionRateCandidateRow = {
   region_name?: unknown;
+  municipality_name?: unknown;
   value?: unknown;
   value_kind?: unknown;
   unit?: unknown;
@@ -21,8 +22,21 @@ export type RuksRegionRateMapFilters = Pick<
   "disease" | "metric" | "year" | "ageGroup" | "sex"
 >;
 
+export type RuksMunicipalityRateMapFilters = Pick<
+  RuksFilterSelection,
+  "disease" | "measure" | "metric" | "year" | "ageGroup" | "sex"
+>;
+
 export type RuksRegionRateMapRow = {
   regionName: string;
+  value: number;
+  measureCode: string;
+  measureLabel: string;
+  sourceUnitLabel: string;
+};
+
+export type RuksMunicipalityRateMapRow = {
+  municipalityName: string;
   value: number;
   measureCode: string;
   measureLabel: string;
@@ -90,6 +104,93 @@ const regionRateMapContract: RuksQueryContract = {
     "source_unit_label",
   ],
 };
+
+const municipalityRateMapContract: RuksQueryContract = {
+  ...regionRateMapContract,
+  selectColumns: [
+    "municipality_name",
+    "value",
+    "value_kind",
+    "unit",
+    "standardization",
+    "measure_code",
+    "measure_label",
+    "source_unit_label",
+  ],
+};
+
+const municipalityRateDedupeKeyColumns = [
+  "municipality_name",
+  "value_kind",
+  "unit",
+  "standardization",
+  "measure_code",
+  "measure_label",
+  "source_unit_label",
+] as const;
+
+export async function queryRuksMunicipalityRateMapRows(
+  release: RuksLatestRelease,
+  filters: RuksMunicipalityRateMapFilters,
+): Promise<RuksMunicipalityRateMapRow[]> {
+  const candidates = await queryRuksMetricRows<RegionRateCandidateRow>(
+    release,
+    municipalityRateMapContract,
+    {
+      ...filters,
+      geoLevel: "municipality",
+    },
+    {
+      dedupe: {
+        keyColumns: municipalityRateDedupeKeyColumns,
+        valueColumn: "value",
+      },
+      orderByColumns: ["municipality_name", "measure_code", "standardization"],
+    },
+  );
+
+  const rowsByMunicipality = new Map<string, RuksMunicipalityRateMapRow>();
+
+  for (const candidate of candidates) {
+    const municipalityName = readText(candidate.municipality_name);
+    const value = readNumber(candidate.value);
+    const valueKind = readText(candidate.value_kind);
+    const unit = readText(candidate.unit);
+    const standardization = readText(candidate.standardization);
+    const measureCode = readText(candidate.measure_code);
+    const measureLabel = readText(candidate.measure_label);
+    const sourceUnitLabel = readText(candidate.source_unit_label);
+
+    if (
+      municipalityName === null ||
+      value === null ||
+      measureCode === null ||
+      valueKind !== "rate" ||
+      unit !== "per_100k_population" ||
+      standardization !== "none"
+    ) {
+      continue;
+    }
+
+    if (rowsByMunicipality.has(municipalityName)) {
+      throw new Error(
+        `Municipality map query returned multiple rate rows for ${municipalityName}.`,
+      );
+    }
+
+    rowsByMunicipality.set(municipalityName, {
+      municipalityName,
+      value,
+      measureCode,
+      measureLabel: measureLabel ?? "",
+      sourceUnitLabel: sourceUnitLabel ?? "",
+    });
+  }
+
+  return Array.from(rowsByMunicipality.values()).sort((left, right) =>
+    left.municipalityName.localeCompare(right.municipalityName, "da-DK"),
+  );
+}
 
 export async function queryRuksRegionRateMapRows(
   release: RuksLatestRelease,

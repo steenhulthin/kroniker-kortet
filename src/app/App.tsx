@@ -29,7 +29,9 @@ import {
 } from "../lib/ruks-region-join-diagnostics";
 import {
   auditRuksRegionRateCandidates,
+  queryRuksMunicipalityRateMapRows,
   queryRuksRegionRateMapRows,
+  type RuksMunicipalityRateMapRow,
   type RuksRegionRateCandidateAudit,
   type RuksRegionRateMapRow,
 } from "../lib/ruks-map";
@@ -112,6 +114,14 @@ type RegionMetricLoadState =
   | { status: "blocked"; message: string }
   | { status: "loading" }
   | { status: "ready"; rows: RuksRegionRateMapRow[] }
+  | { status: "empty" }
+  | { status: "error"; message: string };
+
+type MunicipalityMetricLoadState =
+  | { status: "idle" }
+  | { status: "blocked"; message: string }
+  | { status: "loading" }
+  | { status: "ready"; rows: RuksMunicipalityRateMapRow[] }
   | { status: "empty" }
   | { status: "error"; message: string };
 
@@ -580,6 +590,49 @@ function getRegionMapEmptyLabel(
   return "ingen rate fundet";
 }
 
+function getMunicipalityLegendLabels(
+  municipalityMetricState: MunicipalityMetricLoadState,
+  municipalityMinValue: number,
+  municipalityMaxValue: number,
+) {
+  if (municipalityMetricState.status === "ready") {
+    return {
+      start: formatMetricValue(municipalityMinValue),
+      end: formatMetricValue(municipalityMaxValue),
+    };
+  }
+
+  if (municipalityMetricState.status === "blocked") {
+    return {
+      start: "Table range",
+      end: "Map paused",
+    };
+  }
+
+  return {
+    start: "Loading",
+    end: "Ready",
+  };
+}
+
+function getMunicipalityMapEmptyLabel(
+  municipalityMetricState: MunicipalityMetricLoadState,
+): string {
+  if (municipalityMetricState.status === "blocked") {
+    return "single year and age group required";
+  }
+
+  if (municipalityMetricState.status === "loading") {
+    return "indlaeser kommunerater";
+  }
+
+  if (municipalityMetricState.status === "empty") {
+    return "ingen kommunerater fundet";
+  }
+
+  return "ingen rate fundet";
+}
+
 function formatNameList(names: readonly string[]): string {
   return names.length === 0 ? "none" : names.join(", ");
 }
@@ -691,6 +744,10 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
   const [regionMetricState, setRegionMetricState] = useState<RegionMetricLoadState>({
     status: "idle",
   });
+  const [municipalityMetricState, setMunicipalityMetricState] =
+    useState<MunicipalityMetricLoadState>({
+      status: "idle",
+    });
   const [regionJoinDiagnosticsState, setRegionJoinDiagnosticsState] =
     useState<RegionJoinDiagnosticsLoadState>({
       status: "idle",
@@ -844,6 +901,60 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
     }
 
     void loadPreview();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [release, filters, filterLoadState.status]);
+
+  useEffect(() => {
+    if (filterLoadState.status !== "ready" || filters === null) {
+      return;
+    }
+
+    if (filters.geoLevel !== "municipality") {
+      setMunicipalityMetricState({ status: "idle" });
+      return;
+    }
+
+    if (!hasSingleMapSlice(filters)) {
+      setMunicipalityMetricState({
+        status: "blocked",
+        message:
+          "The table can show year ranges and multiple age groups, but the choropleth needs one year and one age group until an explicit aggregation rule is chosen.",
+      });
+      return;
+    }
+
+    const activeFilters = toMapSnapshotFilters(filters);
+    let cancelled = false;
+
+    setMunicipalityMetricState({ status: "loading" });
+
+    async function loadMunicipalityMetrics() {
+      try {
+        const rows = await queryRuksMunicipalityRateMapRows(release, activeFilters);
+
+        if (cancelled) {
+          return;
+        }
+
+        setMunicipalityMetricState(
+          rows.length === 0 ? { status: "empty" } : { status: "ready", rows },
+        );
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+
+        const message =
+          error instanceof Error ? error.message : "Unknown municipality metric error";
+
+        setMunicipalityMetricState({ status: "error", message });
+      }
+    }
+
+    void loadMunicipalityMetrics();
 
     return () => {
       cancelled = true;
@@ -1060,8 +1171,18 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
     regionValues.length > 0 ? Math.min(...regionValues) : 0;
   const regionMaxValue =
     regionValues.length > 0 ? Math.max(...regionValues) : 0;
-  const regionValueByName = new Map(
+  const regionValueByName = new Map<string, DagiBoundaryMapMetricRow>(
     regionMapRows.map((row) => [row.regionName, row]),
+  );
+  const municipalityMapRows =
+    municipalityMetricState.status === "ready" ? municipalityMetricState.rows : [];
+  const municipalityValues = municipalityMapRows.map((row) => row.value);
+  const municipalityMinValue =
+    municipalityValues.length > 0 ? Math.min(...municipalityValues) : 0;
+  const municipalityMaxValue =
+    municipalityValues.length > 0 ? Math.max(...municipalityValues) : 0;
+  const municipalityValueByName = new Map<string, DagiBoundaryMapMetricRow>(
+    municipalityMapRows.map((row) => [row.municipalityName, row]),
   );
   const regionLegendLabels = getRegionLegendLabels(
     filters,
@@ -1069,11 +1190,28 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
     regionMinValue,
     regionMaxValue,
   );
+  const municipalityLegendLabels = getMunicipalityLegendLabels(
+    municipalityMetricState,
+    municipalityMinValue,
+    municipalityMaxValue,
+  );
   const regionMapEmptyLabel = getRegionMapEmptyLabel(filters, regionMetricState);
+  const municipalityMapEmptyLabel =
+    getMunicipalityMapEmptyLabel(municipalityMetricState);
   const activeBoundaries =
     regionBoundaryState.status === "ready"
       ? regionBoundaryState.boundaries[activeBoundaryLevel]
       : null;
+  const activeRowsByName = isRegionView ? regionValueByName : municipalityValueByName;
+  const activeMinValue = isRegionView ? regionMinValue : municipalityMinValue;
+  const activeMaxValue = isRegionView ? regionMaxValue : municipalityMaxValue;
+  const activeLegendLabels = isRegionView ? regionLegendLabels : municipalityLegendLabels;
+  const activeMapEmptyLabel = isRegionView
+    ? regionMapEmptyLabel
+    : municipalityMapEmptyLabel;
+  const activeMapIsReady = isRegionView
+    ? isKOLRegionPrototype && regionMetricState.status === "ready"
+    : municipalityMetricState.status === "ready";
   return (
     <main className="dashboard-layout">
       <aside className="sidebar panel">
@@ -1248,6 +1386,8 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
             <span className="pill">
               {isKOLRegionPrototype && regionMetricState.status === "ready"
                 ? "Live region map"
+                : !isRegionView && municipalityMetricState.status === "ready"
+                  ? "Live municipality map"
                 : isRegionView
                   ? "Static DAGI regions"
                   : "Static DAGI municipalities"}
@@ -1259,21 +1399,17 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
             {activeBoundaries ? (
               <DagiBoundaryMapLibre
                 boundaries={activeBoundaries}
-                rowsByRegion={isRegionView ? regionValueByName : new Map()}
-                minValue={regionMinValue}
-                maxValue={regionMaxValue}
-                emptyLabel={
-                  isRegionView
-                    ? regionMapEmptyLabel
-                    : "municipality rates not joined yet"
-                }
-                muted={!(isKOLRegionPrototype && regionMetricState.status === "ready")}
+                rowsByName={activeRowsByName}
+                minValue={activeMinValue}
+                maxValue={activeMaxValue}
+                emptyLabel={activeMapEmptyLabel}
+                muted={!activeMapIsReady}
               />
             ) : null}
             <div className="map-canvas__legend">
-              <span>{regionLegendLabels.start}</span>
+              <span>{activeLegendLabels.start}</span>
               <div className="legend-ramp" />
-              <span>{regionLegendLabels.end}</span>
+              <span>{activeLegendLabels.end}</span>
             </div>
           </div>
 
@@ -1367,11 +1503,52 @@ function Dashboard({ release }: { release: RuksLatestRelease }) {
 
             {filters?.geoLevel === "municipality" ? (
               <div className="preview-state">
-                <h3>Region map is live first</h3>
+                <h3>
+                  {municipalityMetricState.status === "ready"
+                    ? selectedMeasureLabel
+                    : "Municipality map"}
+                </h3>
                 <p className="muted">
-                  Municipality mode still uses the validation preview while the region
-                  choropleth prototype is being proven and QA-approved.
+                  Municipality values are joined by exact municipality name and colored
+                  by the selected non-standardized rate.
                 </p>
+              </div>
+            ) : null}
+
+            {filters?.geoLevel === "municipality" &&
+            municipalityMetricState.status === "blocked" ? (
+              <div className="preview-state">
+                <h3>Map slice paused</h3>
+                <p className="muted">{municipalityMetricState.message}</p>
+              </div>
+            ) : null}
+
+            {filters?.geoLevel === "municipality" &&
+            municipalityMetricState.status === "loading" ? (
+              <div className="preview-state">
+                <h3>Loading municipality rates</h3>
+                <p className="muted">
+                  Querying the non-standardized rate rows for the selected municipality
+                  view.
+                </p>
+              </div>
+            ) : null}
+
+            {filters?.geoLevel === "municipality" &&
+            municipalityMetricState.status === "empty" ? (
+              <div className="preview-state">
+                <h3>No municipality rates found</h3>
+                <p className="muted">
+                  DuckDB returned no municipality rate rows for the selected filters.
+                </p>
+              </div>
+            ) : null}
+
+            {filters?.geoLevel === "municipality" &&
+            municipalityMetricState.status === "error" ? (
+              <div className="preview-state preview-state--error">
+                <h3>Municipality rate query failed</h3>
+                <pre className="error-box">{municipalityMetricState.message}</pre>
               </div>
             ) : null}
           </div>
@@ -1709,20 +1886,24 @@ type DagiBoundaryMapFeatureCollection = {
   features: DagiBoundaryMapFeature[];
 };
 
+type DagiBoundaryMapMetricRow = {
+  value: number;
+};
+
 const DAGI_MAP_SOURCE_ID = "ruks-dagi-boundaries";
 const DAGI_MAP_FILL_LAYER_ID = "ruks-dagi-boundary-fill";
 const DAGI_MAP_LINE_LAYER_ID = "ruks-dagi-boundary-line";
 
 function DagiBoundaryMapLibre({
   boundaries,
-  rowsByRegion,
+  rowsByName,
   minValue,
   maxValue,
   emptyLabel,
   muted,
 }: {
   boundaries: DagiBoundaryCollection;
-  rowsByRegion: Map<string, RuksRegionRateMapRow>;
+  rowsByName: Map<string, DagiBoundaryMapMetricRow>;
   minValue: number;
   maxValue: number;
   emptyLabel: string;
@@ -1732,8 +1913,8 @@ function DagiBoundaryMapLibre({
   const mapRef = useRef<maplibregl.Map | null>(null);
   const loadedRef = useRef(false);
   const boundaryData = useMemo(
-    () => buildDagiBoundaryMapFeatureCollection(boundaries, rowsByRegion, emptyLabel),
-    [boundaries, rowsByRegion, emptyLabel],
+    () => buildDagiBoundaryMapFeatureCollection(boundaries, rowsByName, emptyLabel),
+    [boundaries, rowsByName, emptyLabel],
   );
 
   useEffect(() => {
@@ -1817,13 +1998,13 @@ function DagiBoundaryMapLibre({
 
 function buildDagiBoundaryMapFeatureCollection(
   boundaries: DagiBoundaryCollection,
-  rowsByRegion: Map<string, RuksRegionRateMapRow>,
+  rowsByName: Map<string, DagiBoundaryMapMetricRow>,
   emptyLabel: string,
 ): DagiBoundaryMapFeatureCollection {
   return {
     type: "FeatureCollection",
     features: boundaries.features.map((feature) => {
-      const row = rowsByRegion.get(feature.properties.name);
+      const row = rowsByName.get(feature.properties.name);
       const value = row?.value ?? null;
 
       return {
